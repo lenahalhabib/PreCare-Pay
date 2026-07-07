@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { House, Plus, FileText, User } from "lucide-react";
+import { Plus, FileText, User } from "lucide-react";
 
 export default function BottomNavigation() {
   const pathname = usePathname();
@@ -12,18 +12,14 @@ export default function BottomNavigation() {
 
   return (
     <nav className="bg-[#476973] rounded-t-3xl py-5">
-      <div className="flex justify-around">
-
-        <Link href="/home">
-          <House size={28} className={iconClass("/home")} />
-        </Link>
+      <div className="flex justify-around items-center">
 
         <Link href="/create-plan">
           <Plus size={28} className={iconClass("/create-plan")} />
         </Link>
 
-        <Link href="/current-plan">
-          <FileText size={28} className={iconClass("/current-plan")} />
+        <Link href="/current-plans">
+          <FileText size={28} className={iconClass("/current-plans")} />
         </Link>
 
         <Link href="/profile">

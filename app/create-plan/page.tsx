@@ -1,20 +1,74 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Upload, FileText, X, Sparkles } from "lucide-react";
 import BottomNavigation from "@/shared/components/navigation/BottomNavigation";
+import { useTreatment } from "@/shared/context/TreatmentContext";
 
 export default function CreatePlanPage() {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
-
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const handleAnalyze = async () => {
-    if (!selectedFile) return;
+  const { setExtractedText } = useTreatment();
+
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [manualText, setManualText] = useState("");
+  const [isDragging, setIsDragging] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const canAnalyze = selectedFile !== null || manualText.trim().length > 0;
+
+  function handleFileSelect(file: File) {
+    setErrorMessage("");
+
+    const allowedTypes = [
+      "application/pdf",
+      "image/png",
+      "image/jpeg",
+      "image/jpg",
+      "image/webp",
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+      setErrorMessage("Please upload a PDF or image file.");
+      return;
+    }
+
+    setSelectedFile(file);
+  }
+
+  function handleDrop(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setIsDragging(false);
+
+    const file = event.dataTransfer.files?.[0];
+
+    if (file) {
+      handleFileSelect(file);
+    }
+  }
+
+  function formatFileSize(size: number) {
+    const sizeInMb = size / (1024 * 1024);
+    return `${sizeInMb.toFixed(2)} MB`;
+  }
+
+  async function handleAnalyze() {
+    if (!canAnalyze) return;
 
     try {
-      setLoading(true);
+      setIsAnalyzing(true);
+      setErrorMessage("");
+
+      if (manualText.trim()) {
+        setExtractedText(manualText.trim());
+        router.push("/review-plan");
+        return;
+      }
+
+      if (!selectedFile) return;
 
       const formData = new FormData();
       formData.append("file", selectedFile);
@@ -24,81 +78,152 @@ export default function CreatePlanPage() {
         body: formData,
       });
 
-      const data = await response.json();
-
-      console.log("API Response:", data);
+      const result = await response.json();
 
       if (!response.ok) {
-        alert(data.error || "Something went wrong");
-        return;
+        throw new Error(result.error || "Failed to analyze file.");
       }
 
+      setExtractedText(result.text || "");
       router.push("/review-plan");
     } catch (error) {
-      console.error(error);
-      alert("Failed to analyze the file.");
+      setErrorMessage(
+        error instanceof Error ? error.message : "Something went wrong."
+      );
     } finally {
-      setLoading(false);
+      setIsAnalyzing(false);
     }
-  };
+  }
 
   return (
     <main className="min-h-screen bg-[#D4E0DF] flex flex-col">
-      <header className="pt-12 text-center">
-        <h1 className="text-4xl font-serif text-[#476973]">
-          Create Plan
-        </h1>
-      </header>
+      <section className="flex-1 px-6 pt-12 pb-10">
+        <header className="mb-8">
+          <h1 className="font-serif text-4xl text-[#476973]">
+            PreCare Pay
+          </h1>
 
-      <section className="flex-1 flex flex-col items-center justify-center px-8">
-        <div className="w-full max-w-sm rounded-3xl border-2 border-dashed border-[#476973] p-10 text-center">
-          <p className="text-[#476973] font-semibold">
-            Upload your treatment plan
+          <p className="mt-3 text-[#476973]/80 leading-6">
+            Upload your dental treatment plan to compare hospitals and find the
+            best option for you.
           </p>
+        </header>
 
-          <input
-            id="upload"
-            type="file"
-            accept=".pdf,.jpg,.jpeg,.png"
-            className="hidden"
-            onChange={(event) => {
-              if (event.target.files && event.target.files.length > 0) {
-                setSelectedFile(event.target.files[0]);
-              }
+        <div className="rounded-[34px] bg-[#F8FBFA] p-6 shadow-sm">
+          <h2 className="font-serif text-3xl text-[#476973] text-center">
+            Upload Treatment Plan
+          </h2>
+
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={(event) => {
+              event.preventDefault();
+              setIsDragging(true);
             }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={handleDrop}
+            className={`mt-8 cursor-pointer rounded-[30px] border-2 border-dashed p-8 text-center transition ${
+              isDragging
+                ? "border-[#476973] bg-[#D4E0DF]"
+                : "border-[#B8C9C6] bg-white"
+            }`}
+          >
+            {!selectedFile ? (
+              <>
+                <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#D4E0DF]">
+                  <Upload size={34} className="text-[#476973]" />
+                </div>
+
+                <p className="mt-5 font-serif text-2xl text-[#476973]">
+                  Tap to upload
+                </p>
+
+                <p className="mt-2 text-sm text-[#476973]/70">
+                  PDF • JPG • PNG • WEBP
+                </p>
+              </>
+            ) : (
+              <div className="text-left">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#D4E0DF]">
+                    <FileText size={28} className="text-[#476973]" />
+                  </div>
+
+                  <div className="flex-1">
+                    <p className="font-semibold text-[#476973]">
+                      {selectedFile.name}
+                    </p>
+                    <p className="mt-1 text-sm text-[#476973]/70">
+                      {selectedFile.type.includes("pdf")
+                        ? "PDF Document"
+                        : "Image File"}{" "}
+                      • {formatFileSize(selectedFile.size)}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setSelectedFile(null);
+                    }}
+                    className="rounded-full bg-[#EEF4F3] p-2"
+                  >
+                    <X size={18} className="text-[#476973]" />
+                  </button>
+                </div>
+
+                <p className="mt-5 text-center text-sm font-medium text-[#476973]">
+                  Tap to change file
+                </p>
+              </div>
+            )}
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,image/*"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) handleFileSelect(file);
+              }}
+            />
+          </div>
+
+          <div className="my-7 flex items-center gap-4">
+            <div className="h-px flex-1 bg-[#C8D2D0]" />
+            <span className="text-sm text-[#476973]/70">or</span>
+            <div className="h-px flex-1 bg-[#C8D2D0]" />
+          </div>
+
+          <textarea
+            value={manualText}
+            onChange={(event) => setManualText(event.target.value)}
+            placeholder="Paste your treatment plan text here..."
+            className="min-h-36 w-full resize-none rounded-[28px] border border-[#D4E0DF] bg-white p-5 text-[#476973] outline-none placeholder:text-[#476973]/50"
           />
 
-          <label
-            htmlFor="upload"
-            className="mt-8 inline-block cursor-pointer rounded-2xl bg-[#476973] px-8 py-3 text-white"
-          >
-            Upload File
-          </label>
-
-          {selectedFile && (
-            <div className="mt-6">
-              <p className="text-green-600 font-semibold">
-                ✅ {selectedFile.name}
-              </p>
-
-              <p className="text-sm text-[#476973]">
-                Uploaded Successfully
-              </p>
-            </div>
+          {errorMessage && (
+            <p className="mt-4 rounded-2xl bg-red-50 p-3 text-sm text-red-600">
+              {errorMessage}
+            </p>
           )}
-        </div>
 
-        <button
-          onClick={handleAnalyze}
-          disabled={!selectedFile || loading}
-          className={`mt-10 w-full max-w-sm rounded-2xl py-4 font-semibold text-white transition ${
-            selectedFile
-              ? "bg-[#476973] hover:opacity-90"
-              : "bg-gray-400 cursor-not-allowed"
-          }`}
-        >
-          {loading ? "Analyzing..." : "Analyze"}
-        </button>
+          <button
+            onClick={handleAnalyze}
+            disabled={!canAnalyze || isAnalyzing}
+            className={`mt-7 flex w-full items-center justify-center gap-2 rounded-3xl py-4 font-serif text-xl transition ${
+              canAnalyze && !isAnalyzing
+                ? "bg-[#476973] text-white"
+                : "bg-[#C8D2D0] text-white"
+            }`}
+          >
+            <Sparkles size={22} />
+
+            {isAnalyzing ? "Analyzing..." : "Analyze Plan"}
+          </button>
+        </div>
       </section>
 
       <BottomNavigation />

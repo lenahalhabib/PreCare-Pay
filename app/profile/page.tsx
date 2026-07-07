@@ -1,183 +1,228 @@
 "use client";
+
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import {
+  User,
+  IdCard,
+  Mail,
+  Lock,
+  LogOut,
+  Save,
+} from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import BottomNavigation from "@/shared/components/navigation/BottomNavigation";
 
 export default function ProfilePage() {
+  const router = useRouter();
 
   const [fullName, setFullName] = useState("");
   const [nationalId, setNationalId] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [message, setMessage] = useState("");
 
-  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
   useEffect(() => {
-  loadProfile();
-}, []);
+    loadProfile();
+  }, []);
 
-const loadProfile = async () => {
-  setLoading(true);
+  const loadProfile = async () => {
+    setLoading(true);
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) {
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+
+    setEmail(user.email || "");
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("full_name, national_id")
+      .eq("id", user.id)
+      .single();
+
+    if (!error && data) {
+      setFullName(data.full_name || "");
+      setNationalId(data.national_id || "");
+    }
+
     setLoading(false);
-    return;
-  }
+  };
 
-  setEmail(user.email || "");
-
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("full_name, national_id")
-    .eq("id", user.id)
-    .single();
-
-  if (!error && data) {
-    setFullName(data.full_name);
-    setNationalId(data.national_id);
-  }
-
-  setLoading(false);
-}
   const handleSave = async () => {
-  setMessage("");
-  setErrorMessage("");
+    setMessage("");
+    setErrorMessage("");
+    setSaving(true);
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) return;
-
-  const { error: profileError } = await supabase
-    .from("profiles")
-    .update({
-      full_name: fullName,
-      national_id: nationalId,
-    })
-    .eq("id", user.id);
-
-  if (profileError) {
-    setErrorMessage("Failed to update profile.");
-    return;
-  }
-
-  if (email !== user.email) {
-    const { error } = await supabase.auth.updateUser({
-      email,
-    });
-
-    if (error) {
-      setErrorMessage(error.message);
-      return;
-    }
-  }
-
-  if (password.trim() !== "") {
-    const { error } = await supabase.auth.updateUser({
-      password,
-    });
-
-    if (error) {
-      setErrorMessage(error.message);
+    if (!user) {
+      router.push("/login");
       return;
     }
 
-    setPassword("");
-  }
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({
+        full_name: fullName,
+        national_id: nationalId,
+      })
+      .eq("id", user.id);
 
-  setMessage("Profile updated successfully.");
-};
+    if (profileError) {
+      setErrorMessage("Failed to update profile.");
+      setSaving(false);
+      return;
+    }
+
+    if (email !== user.email) {
+      const { error } = await supabase.auth.updateUser({ email });
+
+      if (error) {
+        setErrorMessage(error.message);
+        setSaving(false);
+        return;
+      }
+    }
+
+    if (password.trim() !== "") {
+      const { error } = await supabase.auth.updateUser({
+        password,
+      });
+
+      if (error) {
+        setErrorMessage(error.message);
+        setSaving(false);
+        return;
+      }
+
+      setPassword("");
+    }
+
+    setMessage("Profile updated successfully.");
+    setSaving(false);
+  };
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    await supabase.auth.signOut();
+    router.push("/login");
+  };
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-[#D4E0DF] flex items-center justify-center">
+        <p className="text-[#476973] font-semibold">Loading profile...</p>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-[#D4E0DF] flex flex-col">
+      <section className="flex-1 px-6 pt-12 pb-10">
+        <header className="mb-8 text-center">
+          <h1 className="font-serif text-5xl text-[#476973]">
+            Profile
+          </h1>
 
-      <header className="pt-12 text-center">
-        <h1 className="text-4xl font-serif text-[#476973]">
-          Profile
-        </h1>
-      </header>
+          <p className="mt-3 text-[#476973]/75">
+            Manage your personal information and account settings.
+          </p>
+        </header>
 
-      <section className="flex-1 flex justify-center px-6 py-8">
+        <div className="rounded-[36px] bg-[#F8FBFA] p-6 shadow-sm">
+          <div className="space-y-5">
+            <div className="flex items-center gap-3 rounded-2xl bg-white px-4 py-4">
+              <User size={21} className="text-[#476973]" />
+              <input
+                type="text"
+                placeholder="Full Name"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                className="w-full bg-transparent text-[#476973] outline-none placeholder:text-[#476973]/45"
+              />
+            </div>
 
-        <div className="w-full max-w-md bg-[#476973] rounded-3xl p-6 space-y-5 shadow-lg">
+            <div className="flex items-center gap-3 rounded-2xl bg-white px-4 py-4">
+              <IdCard size={21} className="text-[#476973]" />
+              <input
+                type="text"
+                placeholder="National ID"
+                value={nationalId}
+                onChange={(e) => setNationalId(e.target.value)}
+                className="w-full bg-transparent text-[#476973] outline-none placeholder:text-[#476973]/45"
+              />
+            </div>
 
-          <div>
-            <label className="text-white font-semibold">Full Name</label>
-            <input
-              type="text"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              className="mt-2 w-full rounded-xl bg-white p-4 outline-none"
-            />
-          </div>
+            <div className="flex items-center gap-3 rounded-2xl bg-white px-4 py-4">
+              <Mail size={21} className="text-[#476973]" />
+              <input
+                type="email"
+                placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-transparent text-[#476973] outline-none placeholder:text-[#476973]/45"
+              />
+            </div>
 
-          <div>
-            <label className="text-white font-semibold">
-              National ID
-            </label>
-            <input
-              type="text"
-              value={nationalId}
-              onChange={(e) => setNationalId(e.target.value)}
-              className="mt-2 w-full rounded-xl bg-white p-4 outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="text-white font-semibold">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-2 w-full rounded-xl bg-white p-4 outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="text-white font-semibold">
-              New Password
-            </label>
-            <input
-              type="password"
-              placeholder="Leave empty if you don't want to change it"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-2 w-full rounded-xl bg-white p-4 outline-none"
-            />
+            <div className="flex items-center gap-3 rounded-2xl bg-white px-4 py-4">
+              <Lock size={21} className="text-[#476973]" />
+              <input
+                type="password"
+                placeholder="New password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-transparent text-[#476973] outline-none placeholder:text-[#476973]/45"
+              />
+            </div>
           </div>
 
           {message && (
-            <div className="bg-green-100 text-green-700 rounded-xl p-3 text-center text-sm">
+            <p className="mt-5 rounded-2xl bg-green-50 p-3 text-center text-sm font-medium text-green-700">
               {message}
-            </div>
+            </p>
           )}
 
+          {errorMessage && (
+            <p className="mt-5 rounded-2xl bg-red-50 p-3 text-center text-sm font-medium text-red-600">
+              {errorMessage}
+            </p>
+          )}
 
-{errorMessage && (
-  <div className="bg-red-100 text-red-700 rounded-xl p-3 text-center text-sm">
-    {errorMessage}
-  </div>
-)}
           <button
             onClick={handleSave}
-            className="w-full bg-white text-[#476973] font-bold py-4 rounded-xl hover:bg-gray-100 transition"
+            disabled={saving}
+            className="mt-7 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#476973] py-4 font-semibold text-white transition disabled:opacity-70"
           >
-            Save Changes
+            <Save size={20} />
+            {saving ? "Saving..." : "Save Changes"}
           </button>
 
+          <button
+            onClick={handleLogout}
+            disabled={loggingOut}
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-[#476973] py-4 font-semibold text-[#476973] transition disabled:opacity-70"
+          >
+            <LogOut size={20} />
+            {loggingOut ? "Logging out..." : "Logout"}
+          </button>
         </div>
-
       </section>
 
       <BottomNavigation />
-
     </main>
   );
 }

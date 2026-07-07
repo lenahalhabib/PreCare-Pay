@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Mail, Lock, ArrowRight } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 export default function LoginPage() {
@@ -11,6 +12,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async () => {
     setErrorMessage("");
@@ -21,74 +23,88 @@ export default function LoginPage() {
     }
 
     try {
+      setIsLoading(true);
+
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) {
-        if (error.message === "Invalid login credentials") {
-          setErrorMessage("Incorrect email or password.");
-        } else {
-          setErrorMessage("Unable to login. Please try again.");
-        }
+        setErrorMessage(
+          error.message === "Invalid login credentials"
+            ? "Incorrect email or password."
+            : "Unable to login. Please try again."
+        );
         return;
       }
 
-      router.push("/home");
+      router.push("/create-plan");
     } catch (err) {
       console.error(err);
       setErrorMessage("Connection error. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <main className="min-h-screen bg-[#D4E0DF] flex flex-col justify-center items-center px-8">
+    <main className="min-h-screen bg-[#D4E0DF] flex flex-col justify-center px-7">
+      <section className="rounded-[36px] bg-[#F8FBFA] p-7 shadow-sm">
+        <h1 className="font-serif text-5xl text-[#476973] text-center">
+          Welcome Back
+        </h1>
 
-      <h1 className="text-5xl font-serif text-[#476973]">
-        Login
-      </h1>
+        <p className="mt-4 text-center text-[#476973]/75">
+          Sign in to continue your treatment plan comparison.
+        </p>
 
-      <div className="mt-12 w-full max-w-sm space-y-5">
+        <div className="mt-10 space-y-5">
+          <div className="flex items-center gap-3 rounded-2xl bg-white px-4 py-4">
+            <Mail size={21} className="text-[#476973]" />
+            <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full bg-transparent text-[#476973] outline-none placeholder:text-[#476973]/45"
+            />
+          </div>
 
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="w-full rounded-2xl bg-white p-4 outline-none"
-        />
+          <div className="flex items-center gap-3 rounded-2xl bg-white px-4 py-4">
+            <Lock size={21} className="text-[#476973]" />
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full bg-transparent text-[#476973] outline-none placeholder:text-[#476973]/45"
+            />
+          </div>
 
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded-2xl bg-white p-4 outline-none"
-        />
+          {errorMessage && (
+            <p className="rounded-2xl bg-red-50 p-3 text-sm font-medium text-red-600">
+              {errorMessage}
+            </p>
+          )}
 
-        {errorMessage && (
-          <p className="text-red-600 text-sm font-medium px-2">
-            {errorMessage}
-          </p>
-        )}
+          <button
+            onClick={handleLogin}
+            disabled={isLoading}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#476973] py-4 font-semibold text-white transition hover:bg-[#3d5d66] disabled:opacity-70"
+          >
+            {isLoading ? "Signing in..." : "LOGIN"}
+            {!isLoading && <ArrowRight size={20} />}
+          </button>
+        </div>
 
-        <button
-          onClick={handleLogin}
-          className="w-full rounded-2xl bg-[#476973] py-4 text-white font-semibold hover:bg-[#3d5d66] transition"
-        >
-          LOGIN
-        </button>
-
-        <p className="mt-6 text-center text-[#476973]">
-          Don't have an account?{" "}
+        <p className="mt-8 text-center text-[#476973]">
+          Don&apos;t have an account?{" "}
           <Link href="/signup" className="font-bold hover:underline">
             Sign Up
           </Link>
         </p>
-
-      </div>
-
+      </section>
     </main>
   );
 }

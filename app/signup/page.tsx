@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Mail, Lock, User, IdCard, ArrowRight } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 export default function SignupPage() {
@@ -13,6 +14,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSignUp = async () => {
     setErrorMessage("");
@@ -23,17 +25,19 @@ export default function SignupPage() {
     }
 
     try {
+      setIsLoading(true);
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
       });
 
       if (error) {
-        if (error.message.includes("already")) {
-          setErrorMessage("This email is already registered.");
-        } else {
-          setErrorMessage(error.message);
-        }
+        setErrorMessage(
+          error.message.includes("already")
+            ? "This email is already registered."
+            : error.message
+        );
         return;
       }
 
@@ -42,89 +46,106 @@ export default function SignupPage() {
         return;
       }
 
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .insert({
-          id: data.user.id,
-          full_name: fullName,
-          national_id: nationalId,
-        });
+      const { error: profileError } = await supabase.from("profiles").insert({
+        id: data.user.id,
+        full_name: fullName,
+        national_id: nationalId,
+        email,
+      });
 
       if (profileError) {
         setErrorMessage("Failed to save profile.");
         return;
       }
 
-      router.push("/home");
+      router.push("/create-plan");
     } catch (err) {
       console.error(err);
       setErrorMessage("Connection error. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <main className="min-h-screen bg-[#D4E0DF] flex flex-col justify-center items-center px-8">
+    <main className="min-h-screen bg-[#D4E0DF] flex flex-col justify-center px-7">
+      <section className="rounded-[36px] bg-[#F8FBFA] p-7 shadow-sm">
+        <h1 className="font-serif text-5xl text-[#476973] text-center">
+          Create Account
+        </h1>
 
-      <h1 className="text-5xl font-serif text-[#476973]">
-        Sign Up
-      </h1>
+        <p className="mt-4 text-center text-[#476973]/75">
+          Start comparing treatment plans and finding better options.
+        </p>
 
-      <div className="mt-12 w-full max-w-sm space-y-5">
+        <div className="mt-10 space-y-5">
+          <div className="flex items-center gap-3 rounded-2xl bg-white px-4 py-4">
+            <User size={21} className="text-[#476973]" />
+            <input
+              type="text"
+              placeholder="Full Name"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              className="w-full bg-transparent text-[#476973] outline-none placeholder:text-[#476973]/45"
+            />
+          </div>
 
-        <input
-          type="text"
-          placeholder="Full Name"
-          value={fullName}
-          onChange={(e) => setFullName(e.target.value)}
-          className="w-full rounded-2xl bg-white p-4 outline-none"
-        />
+          <div className="flex items-center gap-3 rounded-2xl bg-white px-4 py-4">
+            <IdCard size={21} className="text-[#476973]" />
+            <input
+              type="text"
+              placeholder="National ID"
+              value={nationalId}
+              onChange={(e) => setNationalId(e.target.value)}
+              className="w-full bg-transparent text-[#476973] outline-none placeholder:text-[#476973]/45"
+            />
+          </div>
 
-        <input
-          type="text"
-          placeholder="National ID"
-          value={nationalId}
-          onChange={(e) => setNationalId(e.target.value)}
-          className="w-full rounded-2xl bg-white p-4 outline-none"
-        />
+          <div className="flex items-center gap-3 rounded-2xl bg-white px-4 py-4">
+            <Mail size={21} className="text-[#476973]" />
+            <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full bg-transparent text-[#476973] outline-none placeholder:text-[#476973]/45"
+            />
+          </div>
 
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="w-full rounded-2xl bg-white p-4 outline-none"
-        />
+          <div className="flex items-center gap-3 rounded-2xl bg-white px-4 py-4">
+            <Lock size={21} className="text-[#476973]" />
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full bg-transparent text-[#476973] outline-none placeholder:text-[#476973]/45"
+            />
+          </div>
 
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded-2xl bg-white p-4 outline-none"
-        />
+          {errorMessage && (
+            <p className="rounded-2xl bg-red-50 p-3 text-sm font-medium text-red-600">
+              {errorMessage}
+            </p>
+          )}
 
-        {errorMessage && (
-          <p className="text-red-600 text-sm font-medium px-2">
-            {errorMessage}
-          </p>
-        )}
+          <button
+            onClick={handleSignUp}
+            disabled={isLoading}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#476973] py-4 font-semibold text-white transition hover:bg-[#3d5d66] disabled:opacity-70"
+          >
+            {isLoading ? "Creating account..." : "SIGN UP"}
+            {!isLoading && <ArrowRight size={20} />}
+          </button>
+        </div>
 
-        <button
-          onClick={handleSignUp}
-          className="w-full rounded-2xl bg-[#476973] py-4 text-white font-semibold hover:bg-[#3d5d66] transition"
-        >
-          SIGN UP
-        </button>
-
-        <p className="mt-6 text-center text-[#476973]">
+        <p className="mt-8 text-center text-[#476973]">
           Already have an account?{" "}
           <Link href="/login" className="font-bold hover:underline">
             Login
           </Link>
         </p>
-
-      </div>
-
+      </section>
     </main>
   );
 }
