@@ -10,7 +10,7 @@ export default function CreatePlanPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const { setExtractedText } = useTreatment();
+  const { setExtractedText, setItems, setTotalAmount } = useTreatment();
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [manualText, setManualText] = useState("");
@@ -44,15 +44,11 @@ export default function CreatePlanPage() {
     setIsDragging(false);
 
     const file = event.dataTransfer.files?.[0];
-
-    if (file) {
-      handleFileSelect(file);
-    }
+    if (file) handleFileSelect(file);
   }
 
   function formatFileSize(size: number) {
-    const sizeInMb = size / (1024 * 1024);
-    return `${sizeInMb.toFixed(2)} MB`;
+    return `${(size / (1024 * 1024)).toFixed(2)} MB`;
   }
 
   async function handleAnalyze() {
@@ -62,16 +58,13 @@ export default function CreatePlanPage() {
       setIsAnalyzing(true);
       setErrorMessage("");
 
-      if (manualText.trim()) {
-        setExtractedText(manualText.trim());
-        router.push("/review-plan");
-        return;
-      }
-
-      if (!selectedFile) return;
-
       const formData = new FormData();
-      formData.append("file", selectedFile);
+
+      if (manualText.trim()) {
+        formData.append("text", manualText.trim());
+      } else if (selectedFile) {
+        formData.append("file", selectedFile);
+      }
 
       const response = await fetch("/api/extract-plan", {
         method: "POST",
@@ -81,10 +74,13 @@ export default function CreatePlanPage() {
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || "Failed to analyze file.");
+        throw new Error(result.error || "Failed to analyze treatment plan.");
       }
 
-      setExtractedText(result.text || "");
+      setExtractedText(result.text || manualText.trim() || "");
+      setItems(result.items || []);
+      setTotalAmount(result.totalAmount || 0);
+
       router.push("/review-plan");
     } catch (error) {
       setErrorMessage(
@@ -99,9 +95,7 @@ export default function CreatePlanPage() {
     <main className="min-h-screen bg-[#D4E0DF] flex flex-col">
       <section className="flex-1 px-6 pt-12 pb-10">
         <header className="mb-8">
-          <h1 className="font-serif text-4xl text-[#476973]">
-            PreCare Pay
-          </h1>
+          <h1 className="font-serif text-4xl text-[#476973]">PreCare Pay</h1>
 
           <p className="mt-3 text-[#476973]/80 leading-6">
             Upload your dental treatment plan to compare hospitals and find the
@@ -220,7 +214,6 @@ export default function CreatePlanPage() {
             }`}
           >
             <Sparkles size={22} />
-
             {isAnalyzing ? "Analyzing..." : "Analyze Plan"}
           </button>
         </div>

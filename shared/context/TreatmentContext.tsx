@@ -4,6 +4,7 @@ import { createContext, ReactNode, useContext, useState } from "react";
 
 export type ExtractedPlanItem = {
   serviceName: string;
+  toothNumber?: string;
   quantity: number;
   unitPrice: number;
   totalPrice: number;
