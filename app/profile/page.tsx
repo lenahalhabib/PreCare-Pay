@@ -2,14 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import {
-  User,
-  IdCard,
-  Mail,
-  Lock,
-  LogOut,
-  Save,
-} from "lucide-react";
+import { User, Mail, Lock, LogOut, Save } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import BottomNavigation from "@/shared/components/navigation/BottomNavigation";
 
@@ -17,7 +10,6 @@ export default function ProfilePage() {
   const router = useRouter();
 
   const [fullName, setFullName] = useState("");
-  const [nationalId, setNationalId] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -34,6 +26,7 @@ export default function ProfilePage() {
 
   const loadProfile = async () => {
     setLoading(true);
+    setErrorMessage("");
 
     const {
       data: { user },
@@ -44,17 +37,23 @@ export default function ProfilePage() {
       return;
     }
 
-    setEmail(user.email || "");
+    const userEmail = user.email || "";
+    setEmail(userEmail);
 
     const { data, error } = await supabase
       .from("profiles")
-      .select("full_name, national_id")
+      .select("full_name, email")
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
 
-    if (!error && data) {
+    if (error) {
+      console.error("Load profile error:", error);
+      setErrorMessage("Failed to load profile.");
+    }
+
+    if (data) {
       setFullName(data.full_name || "");
-      setNationalId(data.national_id || "");
+      setEmail(data.email || userEmail);
     }
 
     setLoading(false);
@@ -63,57 +62,75 @@ export default function ProfilePage() {
   const handleSave = async () => {
     setMessage("");
     setErrorMessage("");
-    setSaving(true);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const cleanFullName = fullName.trim();
+    const cleanEmail = email.trim().toLowerCase();
 
-    if (!user) {
-      router.push("/login");
+    if (!cleanFullName || !cleanEmail) {
+      setErrorMessage("Please fill in your name and email.");
       return;
     }
 
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .update({
-        full_name: fullName,
-        national_id: nationalId,
-      })
-      .eq("id", user.id);
+    try {
+      setSaving(true);
 
-    if (profileError) {
-      setErrorMessage("Failed to update profile.");
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        router.push("/login");
+        return;
+      }
+
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .upsert({
+          id: user.id,
+          full_name: cleanFullName,
+          email: cleanEmail,
+        })
+        .eq("id", user.id);
+
+      if (profileError) {
+        console.error("Update profile error:", profileError);
+        setErrorMessage(profileError.message || "Failed to update profile.");
+        return;
+      }
+
+      if (cleanEmail !== user.email) {
+        const { error } = await supabase.auth.updateUser({
+          email: cleanEmail,
+        });
+
+        if (error) {
+          setErrorMessage(error.message);
+          return;
+        }
+      }
+
+      if (password.trim() !== "") {
+        const { error } = await supabase.auth.updateUser({
+          password,
+        });
+
+        if (error) {
+          setErrorMessage(error.message);
+          return;
+        }
+
+        setPassword("");
+      }
+
+      setFullName(cleanFullName);
+      setEmail(cleanEmail);
+      setMessage("Profile updated successfully.");
+    } catch (err) {
+      console.error(err);
+      setErrorMessage("Connection error. Please try again.");
+    } finally {
       setSaving(false);
-      return;
     }
-
-    if (email !== user.email) {
-      const { error } = await supabase.auth.updateUser({ email });
-
-      if (error) {
-        setErrorMessage(error.message);
-        setSaving(false);
-        return;
-      }
-    }
-
-    if (password.trim() !== "") {
-      const { error } = await supabase.auth.updateUser({
-        password,
-      });
-
-      if (error) {
-        setErrorMessage(error.message);
-        setSaving(false);
-        return;
-      }
-
-      setPassword("");
-    }
-
-    setMessage("Profile updated successfully.");
-    setSaving(false);
   };
 
   const handleLogout = async () => {
@@ -134,9 +151,7 @@ export default function ProfilePage() {
     <main className="min-h-screen bg-[#D4E0DF] flex flex-col">
       <section className="flex-1 px-6 pt-12 pb-10">
         <header className="mb-8 text-center">
-          <h1 className="font-serif text-5xl text-[#476973]">
-            Profile
-          </h1>
+          <h1 className="font-serif text-5xl text-[#476973]">Profile</h1>
 
           <p className="mt-3 text-[#476973]/75">
             Manage your personal information and account settings.
@@ -152,17 +167,6 @@ export default function ProfilePage() {
                 placeholder="Full Name"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                className="w-full bg-transparent text-[#476973] outline-none placeholder:text-[#476973]/45"
-              />
-            </div>
-
-            <div className="flex items-center gap-3 rounded-2xl bg-white px-4 py-4">
-              <IdCard size={21} className="text-[#476973]" />
-              <input
-                type="text"
-                placeholder="National ID"
-                value={nationalId}
-                onChange={(e) => setNationalId(e.target.value)}
                 className="w-full bg-transparent text-[#476973] outline-none placeholder:text-[#476973]/45"
               />
             </div>
@@ -205,16 +209,25 @@ export default function ProfilePage() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="mt-7 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#476973] py-4 font-semibold text-white transition disabled:opacity-70"
+            className="mt-7 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#476973] py-4 font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-70"
           >
-            <Save size={20} />
-            {saving ? "Saving..." : "Save Changes"}
+            {saving ? (
+              <>
+                <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save size={20} />
+                Save Changes
+              </>
+            )}
           </button>
 
           <button
             onClick={handleLogout}
             disabled={loggingOut}
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-[#476973] py-4 font-semibold text-[#476973] transition disabled:opacity-70"
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-[#476973] py-4 font-semibold text-[#476973] transition disabled:cursor-not-allowed disabled:opacity-70"
           >
             <LogOut size={20} />
             {loggingOut ? "Logging out..." : "Logout"}

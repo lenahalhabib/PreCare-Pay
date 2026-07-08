@@ -41,6 +41,9 @@ export default function CreatePlanPage() {
 
   function handleDrop(event: React.DragEvent<HTMLDivElement>) {
     event.preventDefault();
+
+    if (isAnalyzing) return;
+
     setIsDragging(false);
 
     const file = event.dataTransfer.files?.[0];
@@ -52,7 +55,7 @@ export default function CreatePlanPage() {
   }
 
   async function handleAnalyze() {
-    if (!canAnalyze) return;
+    if (!canAnalyze || isAnalyzing) return;
 
     try {
       setIsAnalyzing(true);
@@ -109,17 +112,21 @@ export default function CreatePlanPage() {
           </h2>
 
           <div
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => {
+              if (!isAnalyzing) fileInputRef.current?.click();
+            }}
             onDragOver={(event) => {
               event.preventDefault();
-              setIsDragging(true);
+              if (!isAnalyzing) setIsDragging(true);
             }}
             onDragLeave={() => setIsDragging(false)}
             onDrop={handleDrop}
-            className={`mt-8 cursor-pointer rounded-[30px] border-2 border-dashed p-8 text-center transition ${
-              isDragging
-                ? "border-[#476973] bg-[#D4E0DF]"
-                : "border-[#B8C9C6] bg-white"
+            className={`mt-8 rounded-[30px] border-2 border-dashed p-8 text-center transition ${
+              isAnalyzing
+                ? "cursor-not-allowed border-[#C8D2D0] bg-white opacity-70"
+                : isDragging
+                ? "cursor-pointer border-[#476973] bg-[#D4E0DF]"
+                : "cursor-pointer border-[#B8C9C6] bg-white"
             }`}
           >
             {!selectedFile ? (
@@ -157,18 +164,19 @@ export default function CreatePlanPage() {
 
                   <button
                     type="button"
+                    disabled={isAnalyzing}
                     onClick={(event) => {
                       event.stopPropagation();
                       setSelectedFile(null);
                     }}
-                    className="rounded-full bg-[#EEF4F3] p-2"
+                    className="rounded-full bg-[#EEF4F3] p-2 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <X size={18} className="text-[#476973]" />
                   </button>
                 </div>
 
                 <p className="mt-5 text-center text-sm font-medium text-[#476973]">
-                  Tap to change file
+                  {isAnalyzing ? "File is being analyzed..." : "Tap to change file"}
                 </p>
               </div>
             )}
@@ -178,6 +186,7 @@ export default function CreatePlanPage() {
               type="file"
               accept=".pdf,image/*"
               className="hidden"
+              disabled={isAnalyzing}
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 if (file) handleFileSelect(file);
@@ -193,9 +202,10 @@ export default function CreatePlanPage() {
 
           <textarea
             value={manualText}
+            disabled={isAnalyzing}
             onChange={(event) => setManualText(event.target.value)}
             placeholder="Paste your treatment plan text here..."
-            className="min-h-36 w-full resize-none rounded-[28px] border border-[#D4E0DF] bg-white p-5 text-[#476973] outline-none placeholder:text-[#476973]/50"
+            className="min-h-36 w-full resize-none rounded-[28px] border border-[#D4E0DF] bg-white p-5 text-[#476973] outline-none placeholder:text-[#476973]/50 disabled:cursor-not-allowed disabled:opacity-70"
           />
 
           {errorMessage && (
@@ -204,17 +214,40 @@ export default function CreatePlanPage() {
             </p>
           )}
 
+          {isAnalyzing && (
+            <div className="mt-5 rounded-[26px] border border-[#D4E0DF] bg-white p-5 text-center shadow-sm">
+              <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-4 border-[#D4E0DF] border-t-[#476973]" />
+
+              <p className="font-semibold text-[#476973]">
+                Analyzing your plan...
+              </p>
+
+              <p className="mt-1 text-sm leading-6 text-[#476973]/70">
+                Please wait while we read and extract your treatment details.
+              </p>
+            </div>
+          )}
+
           <button
             onClick={handleAnalyze}
             disabled={!canAnalyze || isAnalyzing}
-            className={`mt-7 flex w-full items-center justify-center gap-2 rounded-3xl py-4 font-serif text-xl transition ${
+            className={`mt-7 flex w-full items-center justify-center gap-2 rounded-3xl py-4 font-serif text-xl transition disabled:cursor-not-allowed ${
               canAnalyze && !isAnalyzing
-                ? "bg-[#476973] text-white"
+                ? "bg-[#476973] text-white hover:bg-[#3d5d66]"
                 : "bg-[#C8D2D0] text-white"
             }`}
           >
-            <Sparkles size={22} />
-            {isAnalyzing ? "Analyzing..." : "Analyze Plan"}
+            {isAnalyzing ? (
+              <>
+                <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                Analyzing...
+              </>
+            ) : (
+              <>
+                <Sparkles size={22} />
+                Analyze Plan
+              </>
+            )}
           </button>
         </div>
       </section>
