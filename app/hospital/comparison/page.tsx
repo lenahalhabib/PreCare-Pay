@@ -5,7 +5,9 @@ import {
   useMemo,
   useState,
 } from "react";
+
 import { useRouter } from "next/navigation";
+
 import {
   ArrowLeft,
   ArrowRight,
@@ -13,6 +15,7 @@ import {
 
 import BottomNavigation from "@/shared/components/navigation/BottomNavigation";
 import { useTreatment } from "@/shared/context/TreatmentContext";
+
 import {
   buildHospitalComparison,
 } from "@/shared/utils/hospitalComparison";
@@ -23,7 +26,6 @@ import {
 } from "@/services/comparison/comparison.service";
 
 import HospitalCard from "./components/HospitalCard";
-
 
 const SELECTED_INSURANCE_STORAGE_KEY =
   "selectedInsuranceCompanyId";
@@ -39,7 +41,9 @@ export default function HospitalComparisonPage() {
   const [
     comparisonData,
     setComparisonData,
-  ] = useState<ComparisonData | null>(null);
+  ] = useState<ComparisonData | null>(
+    null
+  );
 
   const [
     selectedInsuranceCompanyId,
@@ -47,12 +51,9 @@ export default function HospitalComparisonPage() {
   ] = useState("");
 
   const [
-    expandedHospitalId,
-    setExpandedHospitalId,
-  ] = useState<string | null>(null);
-
-  const [loading, setLoading] =
-    useState(true);
+    loading,
+    setLoading,
+  ] = useState(true);
 
   const [
     errorMessage,
@@ -69,11 +70,12 @@ export default function HospitalComparisonPage() {
       setErrorMessage("");
 
       const data =
-        await comparisonService.getComparisonData();
+        await comparisonService
+          .getComparisonData();
 
       setComparisonData(data);
 
-      const savedInsuranceCompanyId =
+      const savedCompanyId =
         window.sessionStorage.getItem(
           SELECTED_INSURANCE_STORAGE_KEY
         );
@@ -82,15 +84,15 @@ export default function HospitalComparisonPage() {
         data.insuranceCompanies.some(
           (company) =>
             company.id ===
-            savedInsuranceCompanyId
+            savedCompanyId
         );
 
       if (
-        savedInsuranceCompanyId &&
+        savedCompanyId &&
         savedCompanyExists
       ) {
         setSelectedInsuranceCompanyId(
-          savedInsuranceCompanyId
+          savedCompanyId
         );
 
         return;
@@ -99,19 +101,23 @@ export default function HospitalComparisonPage() {
       const defaultCompany =
         data.insuranceCompanies.find(
           (company) =>
-            company.plan_type === "BASIC"
-        ) ?? data.insuranceCompanies[0];
+            company.plan_type ===
+            "BASIC"
+        ) ??
+        data.insuranceCompanies[0];
 
-      if (defaultCompany) {
-        setSelectedInsuranceCompanyId(
-          defaultCompany.id
-        );
-
-        window.sessionStorage.setItem(
-          SELECTED_INSURANCE_STORAGE_KEY,
-          defaultCompany.id
-        );
+      if (!defaultCompany) {
+        return;
       }
+
+      setSelectedInsuranceCompanyId(
+        defaultCompany.id
+      );
+
+      window.sessionStorage.setItem(
+        SELECTED_INSURANCE_STORAGE_KEY,
+        defaultCompany.id
+      );
     } catch (error) {
       console.error(error);
 
@@ -136,28 +142,33 @@ export default function HospitalComparisonPage() {
           comparisonData.hospitals,
 
         services:
-          comparisonData.hospitalServices,
+          comparisonData
+            .hospitalServices,
 
         keywords:
-          comparisonData.serviceKeywords,
+          comparisonData
+            .serviceKeywords,
 
         serviceDefinitions:
-          comparisonData.serviceDefinitions,
+          comparisonData
+            .serviceDefinitions,
 
         insuranceCompanies:
-          comparisonData.insuranceCompanies,
+          comparisonData
+            .insuranceCompanies,
 
         insuranceCoverage:
-          comparisonData.insuranceCoverage,
+          comparisonData
+            .insuranceCoverage,
 
         selectedInsuranceCompanyId:
-          selectedInsuranceCompanyId || null,
+          selectedInsuranceCompanyId ||
+          null,
 
         items,
 
-        currentTotal: Number(
-          totalAmount || 0
-        ),
+        currentTotal:
+          Number(totalAmount || 0),
       });
     }, [
       comparisonData,
@@ -165,21 +176,6 @@ export default function HospitalComparisonPage() {
       items,
       totalAmount,
     ]);
-
-  function handleInsuranceChange(
-    companyId: string
-  ) {
-    setSelectedInsuranceCompanyId(
-      companyId
-    );
-
-    window.sessionStorage.setItem(
-      SELECTED_INSURANCE_STORAGE_KEY,
-      companyId
-    );
-
-    setExpandedHospitalId(null);
-  }
 
   if (loading) {
     return (
@@ -192,8 +188,9 @@ export default function HospitalComparisonPage() {
           </p>
 
           <p className="mt-2 text-sm text-[#476973]/70">
-            Analyzing treatment completeness,
-            cost, quality and insurance.
+            Analyzing treatment
+            completeness, cost and
+            hospital rating.
           </p>
         </div>
       </main>
@@ -209,8 +206,9 @@ export default function HospitalComparisonPage() {
           </h1>
 
           <p className="mt-3 text-[#476973]/75">
-            Compare hospitals based on treatment
-            completeness, cost, quality and insurance.
+            Compare hospitals based on
+            treatment availability, price
+            and rating.
           </p>
         </header>
 
@@ -222,7 +220,9 @@ export default function HospitalComparisonPage() {
 
             <button
               type="button"
-              onClick={loadComparisonData}
+              onClick={
+                loadComparisonData
+              }
               className="mt-4 rounded-2xl bg-red-600 px-6 py-3 font-semibold text-white"
             >
               Try Again
@@ -241,19 +241,27 @@ export default function HospitalComparisonPage() {
             ).toLocaleString()}{" "}
             SAR
           </p>
+
+          <p className="mt-2 text-sm text-white/70">
+            {items.length} treatment{" "}
+            {items.length === 1
+              ? "service"
+              : "services"}
+          </p>
         </div>
 
-
         {!errorMessage &&
-        comparisonResults.length === 0 ? (
+        comparisonResults.length ===
+          0 ? (
           <div className="rounded-[36px] bg-[#F8FBFA] p-6 text-center shadow-sm">
             <h2 className="font-serif text-3xl text-[#476973]">
-              No matches found
+              No Matches Found
             </h2>
 
             <p className="mt-4 text-[#476973]/75">
-              We could not match your treatment
-              services with hospital prices.
+              We could not match your
+              treatment services with the
+              available hospital prices.
             </p>
 
             <button
@@ -269,63 +277,53 @@ export default function HospitalComparisonPage() {
             </button>
           </div>
         ) : (
-          <div className="space-y-5">
-            {comparisonResults.map(
-              (result, index) => (
-                <HospitalCard
-                  key={
-                    result.hospital.id
-                  }
-                  result={result}
-                  isBestMatch={index === 0}
-                  isExpanded={
-                    expandedHospitalId ===
-                    result.hospital.id
-                  }
-                  totalTreatmentServices={
-                    items.length
-                  }
-                  onToggleDetails={() =>
-                    setExpandedHospitalId(
-                      (
-                        currentHospitalId
-                      ) =>
-                        currentHospitalId ===
-                        result.hospital.id
-                          ? null
-                          : result.hospital.id
-                    )
-                  }
+          !errorMessage && (
+            <div className="space-y-5">
+              {comparisonResults.map(
+                (result, index) => (
+                  <HospitalCard
+                    key={
+                      result.hospital.id
+                    }
+                    result={result}
+                    isBestMatch={
+                      index === 0
+                    }
+                  />
+                )
+              )}
+
+              <button
+                type="button"
+                onClick={() =>
+                  router.push(
+                    "/best-option"
+                  )
+                }
+                className="mt-7 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#476973] py-4 font-semibold text-white"
+              >
+                View Best Option
+                <ArrowRight
+                  size={20}
                 />
-              )
-            )}
+              </button>
 
-            <button
-              type="button"
-              onClick={() =>
-                router.push(
-                  "/best-option"
-                )
-              }
-              className="mt-7 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#476973] py-4 font-semibold text-white"
-            >
-              View Best Option
-              <ArrowRight size={20} />
-            </button>
-
-            <button
-              type="button"
-              onClick={() =>
-                router.push(
-                  "/review-plan"
-                )
-              }
-              className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-[#476973] py-4 font-semibold text-[#476973]"
-            >
-              <ArrowLeft size={20} />
-              Back to Review
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={() =>
+                  router.push(
+                    "/review-plan"
+                  )
+                }
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-[#476973] py-4 font-semibold text-[#476973]"
+              >
+                <ArrowLeft
+                  size={20}
+                />
+                Back to Review
+              </button>
+            </div>
+          )
         )}
       </section>
 

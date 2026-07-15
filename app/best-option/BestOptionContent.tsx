@@ -2,6 +2,7 @@
 
 import {
   ArrowLeft,
+  BadgeCheck,
   CheckCircle,
   MapPin,
   Save,
@@ -13,13 +14,13 @@ import {
 
 import BottomNavigation from "@/shared/components/navigation/BottomNavigation";
 
-import type { ComparisonResult } from "./bestOption.mapper";
+import type {
+  ComparisonResult,
+} from "./bestOption.mapper";
 
 type BestOptionContentProps = {
   bestOption: ComparisonResult;
-  confidence: number;
   totalItems: number;
-  recommendationReason: string;
   saving: boolean;
   saved: boolean;
   saveErrorMessage: string;
@@ -27,9 +28,75 @@ type BestOptionContentProps = {
   onBack: () => void;
 };
 
+function formatAmount(
+  amount: number
+): string {
+  return Math.round(
+    Number(amount || 0)
+  ).toLocaleString();
+}
+
+function buildRecommendationPoints(
+  bestOption: ComparisonResult,
+  totalItems: number
+): string[] {
+  const matchedServices =
+    Number(
+      bestOption.matchedServices || 0
+    );
+
+  const savings =
+    Number(
+      bestOption.savings || 0
+    );
+
+  const rating =
+    Number(
+      bestOption.hospital.rating || 0
+    );
+
+  const points: string[] = [];
+
+  if (
+    totalItems > 0 &&
+    matchedServices === totalItems
+  ) {
+    points.push(
+      "جميع خدمات الخطة العلاجية متوفرة في المستشفى."
+    );
+  } else {
+    points.push(
+      `يوفر المستشفى ${matchedServices} من أصل ${totalItems} خدمات علاجية.`
+    );
+  }
+
+  if (savings > 0) {
+    points.push(
+      `يوفر حوالي ${formatAmount(
+        savings
+      )} ريال مقارنة بالخطة الأصلية.`
+    );
+  } else if (savings < 0) {
+    points.push(
+      `تكلفته أعلى من الخطة الأصلية بحوالي ${formatAmount(
+        Math.abs(savings)
+      )} ريال، لكنه حقق أفضل توازن بين الخيارات.`
+    );
+  } else {
+    points.push(
+      "تكلفته قريبة من تكلفة الخطة الأصلية."
+    );
+  }
+
+  points.push(
+    `حصل المستشفى على تقييم ${rating} من 5.`
+  );
+
+  return points;
+}
+
 export default function BestOptionContent({
   bestOption,
-  confidence,
   totalItems,
   saving,
   saved,
@@ -38,24 +105,31 @@ export default function BestOptionContent({
   onBack,
 }: BestOptionContentProps) {
   const matchedServices =
-    bestOption.matchedServices;
-
-  const allServicesMatched =
-    totalItems > 0 &&
-    matchedServices === totalItems;
-
-  const roundedInsuranceCompatibility =
-    Math.round(
-      bestOption.insuranceCompatibility
+    Number(
+      bestOption.matchedServices || 0
     );
 
-  const roundedInsuranceCoveredAmount =
+  const finalScore =
     Math.round(
-      bestOption.insuranceCoveredAmount
+      bestOption.finalScore || 0
     );
 
-  const roundedPatientAmount =
-    Math.round(bestOption.patientAmount);
+  const insuranceCoveredAmount =
+    Math.round(
+      bestOption.insuranceCoveredAmount ||
+        0
+    );
+
+  const patientAmount =
+    Math.round(
+      bestOption.patientAmount || 0
+    );
+
+  const recommendationPoints =
+    buildRecommendationPoints(
+      bestOption,
+      totalItems
+    );
 
   return (
     <main className="flex min-h-screen flex-col bg-[#D4E0DF]">
@@ -74,8 +148,8 @@ export default function BestOptionContent({
 
           <p className="mt-3 text-[#476973]/75">
             The hospital with the best balance
-            between treatment completeness, cost,
-            quality and insurance.
+            between treatment completeness,
+            cost and rating.
           </p>
         </header>
 
@@ -97,17 +171,61 @@ export default function BestOptionContent({
             {bestOption.hospital.location}
           </p>
 
+          {bestOption.hospital
+            .accreditation && (
+            <p className="mt-3 flex items-center justify-center gap-2 text-sm opacity-85">
+              <BadgeCheck size={16} />
+
+              {
+                bestOption.hospital
+                  .accreditation
+              }
+            </p>
+          )}
+
           <p className="mt-5 text-4xl font-bold">
-            {bestOption.total.toLocaleString()}{" "}
+            {formatAmount(
+              bestOption.total
+            )}{" "}
             SAR
           </p>
 
           <span className="mt-4 inline-block rounded-full bg-white px-4 py-2 text-sm font-bold text-[#476973]">
-            Best Match
+            Best Match · {finalScore}%
           </span>
         </div>
 
         <div className="mt-5 grid grid-cols-2 gap-4">
+          <div className="rounded-[26px] bg-[#F8FBFA] p-5 text-center shadow-sm">
+            <CheckCircle
+              size={24}
+              className="mx-auto text-[#476973]"
+            />
+
+            <p className="mt-2 text-sm text-[#476973]/65">
+              Plan Completeness
+            </p>
+
+            <p className="mt-1 text-xl font-bold text-[#476973]">
+              {matchedServices}/{totalItems}
+            </p>
+          </div>
+
+          <div className="rounded-[26px] bg-[#F8FBFA] p-5 text-center shadow-sm">
+            <Star
+              size={24}
+              className="mx-auto text-[#476973]"
+            />
+
+            <p className="mt-2 text-sm text-[#476973]/65">
+              Hospital Rating
+            </p>
+
+            <p className="mt-1 text-xl font-bold text-[#476973]">
+              {bestOption.hospital.rating}/5
+            </p>
+          </div>
+
           <div className="rounded-[26px] bg-[#F8FBFA] p-5 text-center shadow-sm">
             <Wallet
               size={24}
@@ -119,7 +237,9 @@ export default function BestOptionContent({
             </p>
 
             <p className="mt-1 text-xl font-bold text-[#476973]">
-              {roundedPatientAmount.toLocaleString()}{" "}
+              {formatAmount(
+                patientAmount
+              )}{" "}
               SAR
             </p>
           </div>
@@ -135,38 +255,10 @@ export default function BestOptionContent({
             </p>
 
             <p className="mt-1 text-xl font-bold text-[#476973]">
-              {roundedInsuranceCoveredAmount.toLocaleString()}{" "}
+              {formatAmount(
+                insuranceCoveredAmount
+              )}{" "}
               SAR
-            </p>
-          </div>
-
-          <div className="rounded-[26px] bg-[#F8FBFA] p-5 text-center shadow-sm">
-            <Star
-              size={24}
-              className="mx-auto text-[#476973]"
-            />
-
-            <p className="mt-2 text-sm text-[#476973]/65">
-              Rating
-            </p>
-
-            <p className="mt-1 text-xl font-bold text-[#476973]">
-              {bestOption.hospital.rating}/5
-            </p>
-          </div>
-
-          <div className="rounded-[26px] bg-[#F8FBFA] p-5 text-center shadow-sm">
-            <CheckCircle
-              size={24}
-              className="mx-auto text-[#476973]"
-            />
-
-            <p className="mt-2 text-sm text-[#476973]/65">
-              Overall Match
-            </p>
-
-            <p className="mt-1 text-xl font-bold text-[#476973]">
-              {confidence}%
             </p>
           </div>
         </div>
@@ -189,13 +281,17 @@ export default function BestOptionContent({
                     </p>
 
                     <p className="mt-1 text-xs text-[#476973]/60">
-                      {item.unitPrice.toLocaleString()}{" "}
+                      {formatAmount(
+                        item.unitPrice
+                      )}{" "}
                       SAR × {item.quantity}
                     </p>
                   </div>
 
                   <p className="whitespace-nowrap font-bold text-[#476973]">
-                    {item.totalPrice.toLocaleString()}{" "}
+                    {formatAmount(
+                      item.totalPrice
+                    )}{" "}
                     SAR
                   </p>
                 </div>
@@ -209,7 +305,9 @@ export default function BestOptionContent({
             </p>
 
             <p className="font-bold">
-              {bestOption.total.toLocaleString()}{" "}
+              {formatAmount(
+                bestOption.total
+              )}{" "}
               SAR
             </p>
           </div>
@@ -220,7 +318,9 @@ export default function BestOptionContent({
             </p>
 
             <p className="font-bold">
-              {roundedInsuranceCoveredAmount.toLocaleString()}{" "}
+              {formatAmount(
+                insuranceCoveredAmount
+              )}{" "}
               SAR
             </p>
           </div>
@@ -231,10 +331,18 @@ export default function BestOptionContent({
             </p>
 
             <p className="font-bold">
-              {roundedPatientAmount.toLocaleString()}{" "}
+              {formatAmount(
+                patientAmount
+              )}{" "}
               SAR
             </p>
           </div>
+
+          <p className="mt-3 text-center text-xs leading-5 text-[#476973]/60">
+            Insurance estimates are displayed
+            for financial guidance only and do
+            not affect hospital ranking.
+          </p>
         </div>
 
         <div className="mt-5 rounded-[30px] bg-[#F8FBFA] p-5 shadow-sm">
@@ -244,62 +352,25 @@ export default function BestOptionContent({
 
           <ul
             dir="rtl"
-            className="mt-4 space-y-3 text-right leading-7 text-[#476973]/85"
+            className="mt-4 space-y-3 rounded-2xl bg-white px-4 py-4 text-right text-[#476973]/85"
           >
-            <li className="rounded-2xl bg-white px-4 py-3">
-              •{" "}
-              {allServicesMatched
-                ? `تتوفر جميع خدمات خطتك العلاجية وعددها ${totalItems} خدمات.`
-                : `تمت مطابقة ${matchedServices} من أصل ${totalItems} خدمات علاجية.`}
-            </li>
+            {recommendationPoints.map(
+              (point, index) => (
+                <li
+                  key={`${point}-${index}`}
+                  className="flex items-start justify-end gap-2"
+                >
+                  <span className="leading-7">
+                    {point}
+                  </span>
 
-            {bestOption.savings > 0 ? (
-              <li className="rounded-2xl bg-white px-4 py-3">
-                • توفير تقديري يصل إلى{" "}
-                <span className="font-bold">
-                  {bestOption.savings.toLocaleString()}{" "}
-                  ريال.
-                </span>
-              </li>
-            ) : bestOption.savings < 0 ? (
-              <li className="rounded-2xl bg-white px-4 py-3">
-                • التكلفة أعلى من الخطة الأصلية
-                بمقدار{" "}
-                <span className="font-bold">
-                  {Math.abs(
-                    bestOption.savings
-                  ).toLocaleString()}{" "}
-                  ريال،
-                </span>{" "}
-                لكن المستشفى حقق أفضل نتيجة
-                إجمالية بين الخيارات المتاحة.
-              </li>
-            ) : (
-              <li className="rounded-2xl bg-white px-4 py-3">
-                • التكلفة التقديرية مساوية
-                لتكلفة الخطة الأصلية.
-              </li>
+                  <CheckCircle
+                    size={17}
+                    className="mt-1 shrink-0 text-[#476973]"
+                  />
+                </li>
+              )
             )}
-
-            <li className="rounded-2xl bg-white px-4 py-3">
-              • توافق التأمين التقديري يبلغ{" "}
-              <span className="font-bold">
-                {roundedInsuranceCompatibility}%
-              </span>
-              ، ويغطي مبلغًا يصل إلى{" "}
-              <span className="font-bold">
-                {roundedInsuranceCoveredAmount.toLocaleString()}{" "}
-                ريال.
-              </span>
-            </li>
-
-            <li className="rounded-2xl bg-white px-4 py-3">
-              • تقييم المستشفى{" "}
-              <span className="font-bold">
-                {bestOption.hospital.rating}/5
-              </span>
-              ، مما يعكس مستوى جودة الرعاية.
-            </li>
           </ul>
         </div>
 
@@ -309,6 +380,11 @@ export default function BestOptionContent({
             <h3 className="font-semibold text-yellow-800">
               Services not matched
             </h3>
+
+            <p className="mt-2 text-sm leading-6 text-yellow-800/80">
+              These services are not available
+              in this hospital price list.
+            </p>
 
             <ul className="mt-3 space-y-1 text-sm text-yellow-800">
               {bestOption.unmatchedItems.map(

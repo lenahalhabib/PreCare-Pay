@@ -42,7 +42,6 @@ export type HospitalService = {
   service_code: string;
   service_name: string;
   price: number;
-  duration_days: number;
 };
 
 export type ServiceKeyword = {
@@ -61,6 +60,7 @@ export type InsuranceCompany = {
   id: string;
   company_code: string;
   name: string;
+
   plan_type:
     | "BASIC"
     | "PLUS"
@@ -82,15 +82,16 @@ export type MatchedItem = {
   quantity: number;
   unitPrice: number;
   totalPrice: number;
-  durationDays: number;
 };
 
 export type ComparisonResult = {
   hospital: Hospital;
 
   total: number;
+
   savings: number;
-  duration: number;
+
+  comparisonCost: number;
 
   matchedServices: number;
   matchedItems: MatchedItem[];
@@ -99,15 +100,58 @@ export type ComparisonResult = {
   completenessScore: number;
   costScore: number;
   qualityScore: number;
+  finalScore: number;
 
   insuranceCompatibility: number;
   insuranceCoveredAmount: number;
   patientAmount: number;
 
-  insuranceOptions: InsuranceOption[];
-
-  finalScore: number;
+  insuranceOptions:
+    InsuranceOption[];
 };
+
+type BuildHospitalComparisonParams = {
+  hospitals: Hospital[];
+  services: HospitalService[];
+  keywords: ServiceKeyword[];
+
+  serviceDefinitions:
+    ServiceDefinition[];
+
+  insuranceCompanies:
+    InsuranceCompany[];
+
+  insuranceCoverage:
+    InsuranceCoverage[];
+
+  selectedInsuranceCompanyId:
+    string | null;
+
+  items: TreatmentItem[];
+  currentTotal: number;
+};
+
+type ResolvedTreatmentItem = {
+  originalName: string;
+  quantity: number;
+  originalTotal: number;
+
+  serviceCode: string | null;
+  category: ServiceCategory | null;
+};
+
+function toValidNumber(
+  value: unknown
+): number {
+  const numericValue =
+    Number(value);
+
+  return Number.isFinite(
+    numericValue
+  )
+    ? numericValue
+    : 0;
+}
 
 function normalizeText(
   value: string
@@ -121,20 +165,30 @@ function findServiceCode(
   itemName: string,
   keywords: ServiceKeyword[]
 ): string | null {
-  const cleanItemName =
+  const normalizedItemName =
     normalizeText(itemName);
+
+  if (!normalizedItemName) {
+    return null;
+  }
 
   const matchedKeyword =
     keywords.find((keyword) => {
-      const cleanKeyword =
-        normalizeText(keyword.keyword);
+      const normalizedKeyword =
+        normalizeText(
+          keyword.keyword
+        );
+
+      if (!normalizedKeyword) {
+        return false;
+      }
 
       return (
-        cleanItemName.includes(
-          cleanKeyword
+        normalizedItemName.includes(
+          normalizedKeyword
         ) ||
-        cleanKeyword.includes(
-          cleanItemName
+        normalizedKeyword.includes(
+          normalizedItemName
         )
       );
     });
@@ -145,13 +199,209 @@ function findServiceCode(
   );
 }
 
-export function buildHospitalComparison(
+function findServiceDefinition(
+  serviceCode: string,
+  serviceDefinitions:
+    ServiceDefinition[]
+): ServiceDefinition | undefined {
+  return serviceDefinitions.find(
+    (definition) =>
+      definition.service_code ===
+      serviceCode
+  );
+}
+
+function findHospitalService(
+  serviceCode: string,
+  hospitalServices:
+    HospitalService[]
+): HospitalService | undefined {
+  return hospitalServices.find(
+    (service) =>
+      service.service_code ===
+      serviceCode
+  );
+}
+
+function calculateMedian(
+  values: number[]
+): number {
+  const validValues =
+    values
+      .filter(
+        (value) =>
+          Number.isFinite(value) &&
+          value > 0
+      )
+      .sort(
+        (first, second) =>
+          first - second
+      );
+
+  if (validValues.length === 0) {
+    return 0;
+  }
+
+  const middleIndex =
+    Math.floor(
+      validValues.length / 2
+    );
+
+  if (
+    validValues.length % 2 === 1
+  ) {
+    return validValues[
+      middleIndex
+    ];
+  }
+
+  return (
+    validValues[
+      middleIndex - 1
+    ] +
+    validValues[
+      middleIndex
+    ]
+  ) / 2;
+}
+
+function buildMedianPriceByServiceCode(
+  services: HospitalService[]
+): Map<string, number> {
+  const groupedPrices =
+    new Map<string, number[]>();
+
+  services.forEach((service) => {
+    const price =
+      toValidNumber(service.price);
+
+    if (price <= 0) {
+      return;
+    }
+
+    const currentPrices =
+      groupedPrices.get(
+        service.service_code
+      ) ?? [];
+
+    currentPrices.push(price);
+
+    groupedPrices.set(
+      service.service_code,
+      currentPrices
+    );
+  });
+
+  const medians =
+    new Map<string, number>();
+
+  groupedPrices.forEach(
+    (prices, serviceCode) => {
+      medians.set(
+        serviceCode,
+        calculateMedian(prices)
+      );
+    }
+  );
+
+  return medians;
+}
+
+function resolveTreatmentItems(
+  items: TreatmentItem[],
+  keywords: ServiceKeyword[],
+  serviceDefinitions:
+    ServiceDefinition[]
+): ResolvedTreatmentItem[] {
+  return items.map((item) => {
+    const originalName =
+      item.serviceName?.trim() || "";
+
+    const quantity =
+      Math.max(
+        1,
+        toValidNumber(
+          item.quantity
+        ) || 1
+      );
+
+    const originalTotal =
+      Math.max(
+        0,
+        toValidNumber(
+          item.totalPrice
+        )
+      );
+
+    const serviceCode =
+      findServiceCode(
+        originalName,
+        keywords
+      );
+
+    if (!serviceCode) {
+      return {
+        originalName,
+        quantity,
+        originalTotal,
+        serviceCode: null,
+        category: null,
+      };
+    }
+
+    const definition =
+      findServiceDefinition(
+        serviceCode,
+        serviceDefinitions
+      );
+
+    return {
+      originalName,
+      quantity,
+      originalTotal,
+      serviceCode,
+
+      category:
+        definition?.category ??
+        null,
+    };
+  });
+}
+
+function getMissingServiceEstimate(
+  item: ResolvedTreatmentItem,
+  medianPrices:
+    Map<string, number>
+): number {
+  if (item.serviceCode) {
+    const medianUnitPrice =
+      medianPrices.get(
+        item.serviceCode
+      ) ?? 0;
+
+    if (medianUnitPrice > 0) {
+      return (
+        medianUnitPrice *
+        item.quantity
+      );
+    }
+  }
+
+  return item.originalTotal;
+}
+
+function buildBaseHospitalResult(
   params: {
-    hospitals: Hospital[];
-    services: HospitalService[];
-    keywords: ServiceKeyword[];
-    serviceDefinitions:
-      ServiceDefinition[];
+    hospital: Hospital;
+
+    hospitalServices:
+      HospitalService[];
+
+    resolvedItems:
+      ResolvedTreatmentItem[];
+
+    medianPrices:
+      Map<string, number>;
 
     insuranceCompanies:
       InsuranceCompany[];
@@ -162,9 +412,169 @@ export function buildHospitalComparison(
     selectedInsuranceCompanyId:
       string | null;
 
-    items: TreatmentItem[];
     currentTotal: number;
   }
+): ComparisonResult {
+  const {
+    hospital,
+    hospitalServices,
+    resolvedItems,
+    medianPrices,
+    insuranceCompanies,
+    insuranceCoverage,
+    selectedInsuranceCompanyId,
+    currentTotal,
+  } = params;
+
+  const matchedItems:
+    MatchedItem[] = [];
+
+  const unmatchedItems:
+    string[] = [];
+
+  let total = 0;
+  let comparisonCost = 0;
+
+  resolvedItems.forEach((item) => {
+    if (
+      !item.serviceCode ||
+      !item.category
+    ) {
+      unmatchedItems.push(
+        item.originalName
+      );
+
+      comparisonCost +=
+        getMissingServiceEstimate(
+          item,
+          medianPrices
+        );
+
+      return;
+    }
+
+    const matchedService =
+      findHospitalService(
+        item.serviceCode,
+        hospitalServices
+      );
+
+    if (!matchedService) {
+      unmatchedItems.push(
+        item.originalName
+      );
+
+      comparisonCost +=
+        getMissingServiceEstimate(
+          item,
+          medianPrices
+        );
+
+      return;
+    }
+
+    const unitPrice =
+      toValidNumber(
+        matchedService.price
+      );
+
+    const itemTotal =
+      unitPrice * item.quantity;
+
+    matchedItems.push({
+      originalName:
+        item.originalName,
+
+      serviceCode:
+        item.serviceCode,
+
+      serviceName:
+        matchedService.service_name,
+
+      category:
+        item.category,
+
+      quantity:
+        item.quantity,
+
+      unitPrice,
+
+      totalPrice:
+        itemTotal,
+    });
+
+    total += itemTotal;
+    comparisonCost += itemTotal;
+  });
+
+  const completenessScore =
+    calculateCompletenessScore(
+      matchedItems.length,
+      resolvedItems.length
+    );
+
+  const qualityScore =
+    calculateQualityScore(
+      hospital.rating
+    );
+
+  const insuranceDetails =
+    calculateInsuranceDetails({
+      matchedItems,
+      insuranceCoverage,
+
+      insuranceCompanyId:
+        selectedInsuranceCompanyId,
+    });
+
+  const insuranceOptions =
+    calculateInsuranceOptions({
+      matchedItems,
+      insuranceCompanies,
+      insuranceCoverage,
+    });
+
+  return {
+    hospital,
+
+    total,
+
+    savings:
+      toValidNumber(currentTotal) -
+      total,
+
+    comparisonCost,
+
+    matchedServices:
+      matchedItems.length,
+
+    matchedItems,
+    unmatchedItems,
+
+    completenessScore,
+    costScore: 0,
+    qualityScore,
+    finalScore: 0,
+
+    insuranceCompatibility:
+      insuranceDetails
+        .insuranceCompatibility,
+
+    insuranceCoveredAmount:
+      insuranceDetails
+        .insuranceCoveredAmount,
+
+    patientAmount:
+      insuranceDetails
+        .patientAmount,
+
+    insuranceOptions,
+  };
+}
+
+export function buildHospitalComparison(
+  params:
+    BuildHospitalComparisonParams
 ): ComparisonResult[] {
   const {
     hospitals,
@@ -178,8 +588,19 @@ export function buildHospitalComparison(
     currentTotal,
   } = params;
 
-  const baseResults:
-    ComparisonResult[] =
+  const resolvedItems =
+    resolveTreatmentItems(
+      items,
+      keywords,
+      serviceDefinitions
+    );
+
+  const medianPrices =
+    buildMedianPriceByServiceCode(
+      services
+    );
+
+  const baseResults =
     hospitals
       .map((hospital) => {
         const hospitalServices =
@@ -189,166 +610,16 @@ export function buildHospitalComparison(
               hospital.id
           );
 
-        const matchedItems:
-          MatchedItem[] = [];
-
-        const unmatchedItems:
-          string[] = [];
-
-        let total = 0;
-        let duration = 0;
-
-        items.forEach((item) => {
-          const itemName =
-            item.serviceName || "";
-
-          const quantity =
-            Number(
-              item.quantity || 1
-            );
-
-          const serviceCode =
-            findServiceCode(
-              itemName,
-              keywords
-            );
-
-          if (!serviceCode) {
-            unmatchedItems.push(
-              itemName
-            );
-
-            return;
-          }
-
-          const matchedService =
-            hospitalServices.find(
-              (service) =>
-                service.service_code ===
-                serviceCode
-            );
-
-          if (!matchedService) {
-            unmatchedItems.push(
-              itemName
-            );
-
-            return;
-          }
-
-          const serviceDefinition =
-            serviceDefinitions.find(
-              (service) =>
-                service.service_code ===
-                serviceCode
-            );
-
-          if (!serviceDefinition) {
-            unmatchedItems.push(
-              itemName
-            );
-
-            return;
-          }
-
-          const unitPrice =
-            Number(
-              matchedService.price
-            );
-
-          const itemTotal =
-            unitPrice * quantity;
-
-          const itemDuration =
-            Number(
-              matchedService
-                .duration_days || 1
-            );
-
-          matchedItems.push({
-            originalName: itemName,
-            serviceCode,
-            serviceName:
-              matchedService.service_name,
-            category:
-              serviceDefinition.category,
-            quantity,
-            unitPrice,
-            totalPrice: itemTotal,
-            durationDays:
-              itemDuration,
-          });
-
-          total += itemTotal;
-          duration += itemDuration;
-        });
-
-        const completenessScore =
-          calculateCompletenessScore(
-            matchedItems.length,
-            items.length
-          );
-
-        const qualityScore =
-          calculateQualityScore(
-            hospital.rating
-          );
-
-        const insuranceDetails =
-          calculateInsuranceDetails({
-            matchedItems,
-            insuranceCoverage,
-            insuranceCompanyId:
-              selectedInsuranceCompanyId,
-          });
-
-        const insuranceOptions =
-          calculateInsuranceOptions({
-            matchedItems,
-            insuranceCompanies,
-            insuranceCoverage,
-          });
-
-        return {
+        return buildBaseHospitalResult({
           hospital,
-
-          total,
-
-          savings:
-            Number(
-              currentTotal || 0
-            ) - total,
-
-          duration,
-
-          matchedServices:
-            matchedItems.length,
-
-          matchedItems,
-          unmatchedItems,
-
-          completenessScore,
-
-          costScore: 0,
-
-          qualityScore,
-
-          insuranceCompatibility:
-            insuranceDetails
-              .insuranceCompatibility,
-
-          insuranceCoveredAmount:
-            insuranceDetails
-              .insuranceCoveredAmount,
-
-          patientAmount:
-            insuranceDetails
-              .patientAmount,
-
-          insuranceOptions,
-
-          finalScore: 0,
-        };
+          hospitalServices,
+          resolvedItems,
+          medianPrices,
+          insuranceCompanies,
+          insuranceCoverage,
+          selectedInsuranceCompanyId,
+          currentTotal,
+        });
       })
       .filter(
         (result) =>
@@ -376,9 +647,6 @@ export function buildHospitalComparison(
 
           qualityScore:
             result.qualityScore,
-
-          insuranceCompatibility:
-            result.insuranceCompatibility,
         });
 
       return {
@@ -391,8 +659,39 @@ export function buildHospitalComparison(
       (
         firstResult,
         secondResult
-      ) =>
-        secondResult.finalScore -
-        firstResult.finalScore
+      ) => {
+        const finalDifference =
+          secondResult.finalScore -
+          firstResult.finalScore;
+
+        if (finalDifference !== 0) {
+          return finalDifference;
+        }
+
+        const completenessDifference =
+          secondResult
+            .completenessScore -
+          firstResult
+            .completenessScore;
+
+        if (
+          completenessDifference !== 0
+        ) {
+          return completenessDifference;
+        }
+
+        const ratingDifference =
+          secondResult.qualityScore -
+          firstResult.qualityScore;
+
+        if (ratingDifference !== 0) {
+          return ratingDifference;
+        }
+
+        return (
+          firstResult.comparisonCost -
+          secondResult.comparisonCost
+        );
+      }
     );
 }

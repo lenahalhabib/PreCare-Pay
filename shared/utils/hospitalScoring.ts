@@ -5,33 +5,59 @@ import type {
   MatchedItem,
 } from "./hospitalComparison";
 
-const SCORE_WEIGHTS = {
-  completeness: 0.3,
-  cost: 0.25,
-  quality: 0.25,
-  insurance: 0.2,
+export const SCORE_WEIGHTS = {
+  completeness: 1 / 3,
+  cost: 1 / 3,
+  rating: 1 / 3,
+} as const;
+
+export const SCORE_WEIGHT_PERCENTAGES = {
+  completeness: 33.33,
+  cost: 33.33,
+  rating: 33.33,
 } as const;
 
 export type InsuranceOption = {
   companyId: string;
   companyCode: string;
   companyName: string;
-  planType: "BASIC" | "PLUS" | "PREMIUM";
+
+  planType:
+    | "BASIC"
+    | "PLUS"
+    | "PREMIUM";
 
   compatibilityPercentage: number;
   coveredAmount: number;
   patientAmount: number;
 };
 
-function clampScore(value: number): number {
+function toValidNumber(
+  value: unknown
+): number {
+  const numericValue = Number(value);
+
+  return Number.isFinite(numericValue)
+    ? numericValue
+    : 0;
+}
+
+function clampScore(
+  value: number
+): number {
   if (!Number.isFinite(value)) {
     return 0;
   }
 
-  return Math.min(100, Math.max(0, value));
+  return Math.min(
+    100,
+    Math.max(0, value)
+  );
 }
 
-function roundScore(value: number): number {
+function roundScore(
+  value: number
+): number {
   return Math.round(value * 100) / 100;
 }
 
@@ -40,7 +66,8 @@ function calculateMatchedItemsTotal(
 ): number {
   return matchedItems.reduce(
     (total, item) =>
-      total + Number(item.totalPrice || 0),
+      total +
+      toValidNumber(item.totalPrice),
     0
   );
 }
@@ -49,75 +76,133 @@ export function calculateCompletenessScore(
   matchedServices: number,
   totalServices: number
 ): number {
-  if (totalServices <= 0) {
+  const matched =
+    toValidNumber(matchedServices);
+
+  const total =
+    toValidNumber(totalServices);
+
+  if (total <= 0) {
     return 0;
   }
 
+  const score =
+    (matched / total) * 100;
+
   return roundScore(
-    clampScore(
-      (matchedServices / totalServices) * 100
-    )
+    clampScore(score)
   );
 }
+
 
 export function calculateCostScores(
   results: ComparisonResult[]
 ): Map<string, number> {
-  const validTotals = results
-    .map((result) => Number(result.total || 0))
-    .filter((total) => total > 0);
+  const scores =
+    new Map<string, number>();
 
-  const lowestTotal =
-    validTotals.length > 0
-      ? Math.min(...validTotals)
-      : 0;
+  const validCosts =
+    results
+      .map((result) =>
+        toValidNumber(
+          result.comparisonCost
+        )
+      )
+      .filter((cost) => cost > 0);
 
-  const scores = new Map<string, number>();
+  if (validCosts.length === 0) {
+    return scores;
+  }
+
+  const lowestCost =
+    Math.min(...validCosts);
 
   results.forEach((result) => {
-    const hospitalTotal = Number(
-      result.total || 0
-    );
+    const hospitalCost =
+      toValidNumber(
+        result.comparisonCost
+      );
 
     if (
-      lowestTotal <= 0 ||
-      hospitalTotal <= 0
+      hospitalCost <= 0 ||
+      lowestCost <= 0
     ) {
-      scores.set(result.hospital.id, 0);
+      scores.set(
+        result.hospital.id,
+        0
+      );
+
       return;
     }
 
     const score =
-      (lowestTotal / hospitalTotal) * 100;
+      (lowestCost / hospitalCost) *
+      100;
 
     scores.set(
       result.hospital.id,
-      roundScore(clampScore(score))
+      roundScore(
+        clampScore(score)
+      )
     );
   });
 
   return scores;
 }
 
+
 export function calculateQualityScore(
   rating: number
 ): number {
-  const normalizedRating = Number(
-    rating || 0
-  );
+  const normalizedRating =
+    toValidNumber(rating);
+
+  const score =
+    (normalizedRating / 5) * 100;
 
   return roundScore(
-    clampScore(
-      (normalizedRating / 5) * 100
-    )
+    clampScore(score)
   );
 }
 
-export function calculateInsuranceDetails(params: {
-  matchedItems: MatchedItem[];
-  insuranceCoverage: InsuranceCoverage[];
-  insuranceCompanyId: string | null;
-}) {
+
+export function calculateFinalScore(
+  params: {
+    completenessScore: number;
+    costScore: number;
+    qualityScore: number;
+  }
+): number {
+  const {
+    completenessScore,
+    costScore,
+    qualityScore,
+  } = params;
+
+  const finalScore =
+    completenessScore *
+      SCORE_WEIGHTS.completeness +
+    costScore *
+      SCORE_WEIGHTS.cost +
+    qualityScore *
+      SCORE_WEIGHTS.rating;
+
+  return roundScore(
+    clampScore(finalScore)
+  );
+}
+
+export function calculateInsuranceDetails(
+  params: {
+    matchedItems: MatchedItem[];
+
+    insuranceCoverage:
+      InsuranceCoverage[];
+
+    insuranceCompanyId:
+      string | null;
+  }
+) {
   const {
     matchedItems,
     insuranceCoverage,
@@ -125,46 +210,58 @@ export function calculateInsuranceDetails(params: {
   } = params;
 
   const totalTreatmentCost =
-    calculateMatchedItemsTotal(matchedItems);
+    calculateMatchedItemsTotal(
+      matchedItems
+    );
 
   if (!insuranceCompanyId) {
     return {
       insuranceCompatibility: 0,
       insuranceCoveredAmount: 0,
-      patientAmount: roundScore(
-        totalTreatmentCost
-      ),
+      patientAmount:
+        roundScore(
+          totalTreatmentCost
+        ),
     };
   }
 
   const companyCoverage =
     insuranceCoverage.filter(
       (coverage) =>
-        coverage.insurance_company_id ===
+        coverage
+          .insurance_company_id ===
         insuranceCompanyId
     );
 
   const insuranceCoveredAmount =
-    matchedItems.reduce((total, item) => {
-      const itemCoverage =
-        companyCoverage.find(
-          (coverage) =>
-            coverage.category ===
-            item.category
-        );
+    matchedItems.reduce(
+      (total, item) => {
+        const itemCoverage =
+          companyCoverage.find(
+            (coverage) =>
+              coverage.category ===
+              item.category
+          );
 
-      const coveragePercentage =
-        Number(
-          itemCoverage?.coverage_percentage ??
-            0
-        );
+        const coveragePercentage =
+          toValidNumber(
+            itemCoverage
+              ?.coverage_percentage
+          );
 
-      const coveredAmount =
-        Number(item.totalPrice || 0) *
-        (coveragePercentage / 100);
+        const itemTotal =
+          toValidNumber(
+            item.totalPrice
+          );
 
-      return total + coveredAmount;
-    }, 0);
+        const coveredAmount =
+          itemTotal *
+          (coveragePercentage / 100);
+
+        return total + coveredAmount;
+      },
+      0
+    );
 
   const insuranceCompatibility =
     totalTreatmentCost > 0
@@ -178,28 +275,42 @@ export function calculateInsuranceDetails(params: {
     insuranceCoveredAmount;
 
   return {
-    insuranceCompatibility: roundScore(
-      clampScore(insuranceCompatibility)
-    ),
+    insuranceCompatibility:
+      roundScore(
+        clampScore(
+          insuranceCompatibility
+        )
+      ),
 
-    insuranceCoveredAmount: roundScore(
-      Math.max(
-        0,
-        insuranceCoveredAmount
-      )
-    ),
+    insuranceCoveredAmount:
+      roundScore(
+        Math.max(
+          0,
+          insuranceCoveredAmount
+        )
+      ),
 
-    patientAmount: roundScore(
-      Math.max(0, patientAmount)
-    ),
+    patientAmount:
+      roundScore(
+        Math.max(
+          0,
+          patientAmount
+        )
+      ),
   };
 }
 
-export function calculateInsuranceOptions(params: {
-  matchedItems: MatchedItem[];
-  insuranceCompanies: InsuranceCompany[];
-  insuranceCoverage: InsuranceCoverage[];
-}): InsuranceOption[] {
+export function calculateInsuranceOptions(
+  params: {
+    matchedItems: MatchedItem[];
+
+    insuranceCompanies:
+      InsuranceCompany[];
+
+    insuranceCoverage:
+      InsuranceCoverage[];
+  }
+): InsuranceOption[] {
   const {
     matchedItems,
     insuranceCompanies,
@@ -212,29 +323,41 @@ export function calculateInsuranceOptions(params: {
         calculateInsuranceDetails({
           matchedItems,
           insuranceCoverage,
+
           insuranceCompanyId:
             company.id,
         });
 
       return {
-        companyId: company.id,
+        companyId:
+          company.id,
+
         companyCode:
           company.company_code,
-        companyName: company.name,
-        planType: company.plan_type,
+
+        companyName:
+          company.name,
+
+        planType:
+          company.plan_type,
 
         compatibilityPercentage:
-          details.insuranceCompatibility,
+          details
+            .insuranceCompatibility,
 
         coveredAmount:
-          details.insuranceCoveredAmount,
+          details
+            .insuranceCoveredAmount,
 
         patientAmount:
           details.patientAmount,
       };
     })
     .sort(
-      (firstOption, secondOption) =>
+      (
+        firstOption,
+        secondOption
+      ) =>
         getPlanOrder(
           firstOption.planType
         ) -
@@ -244,36 +367,9 @@ export function calculateInsuranceOptions(params: {
     );
 }
 
-export function calculateFinalScore(params: {
-  completenessScore: number;
-  costScore: number;
-  qualityScore: number;
-  insuranceCompatibility: number;
-}): number {
-  const {
-    completenessScore,
-    costScore,
-    qualityScore,
-    insuranceCompatibility,
-  } = params;
-
-  const finalScore =
-    completenessScore *
-      SCORE_WEIGHTS.completeness +
-    costScore *
-      SCORE_WEIGHTS.cost +
-    qualityScore *
-      SCORE_WEIGHTS.quality +
-    insuranceCompatibility *
-      SCORE_WEIGHTS.insurance;
-
-  return roundScore(
-    clampScore(finalScore)
-  );
-}
-
 function getPlanOrder(
-  planType: InsuranceOption["planType"]
+  planType:
+    InsuranceOption["planType"]
 ): number {
   switch (planType) {
     case "BASIC":

@@ -46,8 +46,7 @@ export const comparisonService = {
           hospital_id,
           service_code,
           service_name,
-          price,
-          duration_days
+          price
         `),
 
       supabase

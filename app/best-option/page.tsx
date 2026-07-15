@@ -29,6 +29,9 @@ import {
   createRecommendationReason,
 } from "./bestOption.mapper";
 
+const SELECTED_INSURANCE_STORAGE_KEY =
+  "selectedInsuranceCompanyId";
+
 export default function BestOptionPage() {
   const router = useRouter();
 
@@ -84,7 +87,7 @@ export default function BestOptionPage() {
 
       const savedInsuranceCompanyId =
         window.sessionStorage.getItem(
-          "selectedInsuranceCompanyId"
+          SELECTED_INSURANCE_STORAGE_KEY
         );
 
       const savedCompanyExists =
@@ -111,16 +114,18 @@ export default function BestOptionPage() {
             company.plan_type === "BASIC"
         ) ?? data.insuranceCompanies[0];
 
-      if (defaultCompany) {
-        setSelectedInsuranceCompanyId(
-          defaultCompany.id
-        );
-
-        window.sessionStorage.setItem(
-          "selectedInsuranceCompanyId",
-          defaultCompany.id
-        );
+      if (!defaultCompany) {
+        return;
       }
+
+      setSelectedInsuranceCompanyId(
+        defaultCompany.id
+      );
+
+      window.sessionStorage.setItem(
+        SELECTED_INSURANCE_STORAGE_KEY,
+        defaultCompany.id
+      );
     } catch (error) {
       console.error(error);
 
@@ -160,13 +165,13 @@ export default function BestOptionPage() {
           comparisonData.insuranceCoverage,
 
         selectedInsuranceCompanyId:
-          selectedInsuranceCompanyId || null,
+          selectedInsuranceCompanyId ||
+          null,
 
         items,
 
-        currentTotal: Number(
-          totalAmount || 0
-        ),
+        currentTotal:
+          Number(totalAmount || 0),
       });
     }, [
       comparisonData,
@@ -178,20 +183,27 @@ export default function BestOptionPage() {
   const bestOption =
     comparisonResults[0];
 
-  const confidence = bestOption
-    ? Math.round(bestOption.finalScore)
-    : 0;
-
   const recommendationReason =
-    bestOption
-      ? createRecommendationReason(
-          bestOption,
-          items.length
-        )
-      : "";
+    useMemo(() => {
+      if (!bestOption) {
+        return "";
+      }
+
+      return createRecommendationReason(
+        bestOption,
+        items.length
+      );
+    }, [
+      bestOption,
+      items.length,
+    ]);
 
   async function handleSavePlan() {
-    if (!bestOption || saving || saved) {
+    if (
+      !bestOption ||
+      saving ||
+      saved
+    ) {
       return;
     }
 
@@ -214,12 +226,14 @@ export default function BestOptionPage() {
       setSaved(true);
 
       window.sessionStorage.removeItem(
-        "selectedInsuranceCompanyId"
+        SELECTED_INSURANCE_STORAGE_KEY
       );
 
       resetTreatment();
 
-      router.push("/current-plans");
+      router.push(
+        "/current-plans"
+      );
     } catch (error) {
       console.error(error);
 
@@ -245,14 +259,17 @@ export default function BestOptionPage() {
 
           <p className="mt-2 text-sm text-[#476973]/70">
             Analyzing treatment completeness,
-            cost, quality and insurance.
+            cost and hospital rating.
           </p>
         </div>
       </main>
     );
   }
 
-  if (errorMessage || !bestOption) {
+  if (
+    errorMessage ||
+    !bestOption
+  ) {
     return (
       <main className="flex min-h-screen flex-col bg-[#D4E0DF]">
         <section className="flex-1 px-6 pb-10 pt-12">
@@ -288,11 +305,7 @@ export default function BestOptionPage() {
   return (
     <BestOptionContent
       bestOption={bestOption}
-      confidence={confidence}
       totalItems={items.length}
-      recommendationReason={
-        recommendationReason
-      }
       saving={saving}
       saved={saved}
       saveErrorMessage={

@@ -1,9 +1,18 @@
-import type { ExtractedPlanItem } from "@/shared/context/TreatmentContext";
-import type { SaveTreatmentPlanInput } from "@/services/plan/plan.types";
+import type {
+  ExtractedPlanItem,
+} from "@/shared/context/TreatmentContext";
+
+import type {
+  SaveTreatmentPlanInput,
+} from "@/services/plan/plan.types";
 
 import {
   buildHospitalComparison,
 } from "@/shared/utils/hospitalComparison";
+
+import {
+  SCORE_WEIGHT_PERCENTAGES,
+} from "@/shared/utils/hospitalScoring";
 
 export type ComparisonResult =
   ReturnType<
@@ -17,58 +26,176 @@ type BuildSavePlanInputParams = {
   comparisonResults: ComparisonResult[];
 };
 
+function formatAmount(
+  amount: number
+): string {
+  return Math.round(
+    Number(amount || 0)
+  ).toLocaleString();
+}
+
+function createPriceMessage(
+  bestOption: ComparisonResult
+): string {
+  const priceDifference =
+    Math.abs(
+      Number(bestOption.savings || 0)
+    );
+
+  if (bestOption.savings > 0) {
+    return (
+      `وتوفر تقريبًا ${formatAmount(
+        priceDifference
+      )} ريال مقارنة بالخطة الأصلية`
+    );
+  }
+
+  if (bestOption.savings < 0) {
+    return (
+      `وتزيد عن الخطة الأصلية بحوالي ${formatAmount(
+        priceDifference
+      )} ريال`
+    );
+  }
+
+  return (
+    "وتساوي تكلفة الخطة الأصلية تقريبًا"
+  );
+}
+
 export function createRecommendationReason(
   bestOption: ComparisonResult,
   totalItems: number
 ): string {
-  const priceDifference = Math.abs(
-    bestOption.savings
-  );
+  const matchedServices =
+    Number(
+      bestOption.matchedServices || 0
+    );
 
-  let priceMessage: string;
+  const finalScore =
+    Math.round(
+      bestOption.finalScore
+    );
 
-  if (bestOption.savings > 0) {
-    priceMessage =
-      `يوفر ${priceDifference.toLocaleString()} ريال ` +
-      "مقارنة بالخطة الأصلية";
-  } else if (bestOption.savings < 0) {
-    priceMessage =
-      `تكلفته أعلى من الخطة الأصلية بمقدار ` +
-      `${priceDifference.toLocaleString()} ريال`;
-  } else {
-    priceMessage =
-      "تكلفته مساوية لتكلفة الخطة الأصلية";
-  }
+  const completenessScore =
+    Math.round(
+      bestOption.completenessScore
+    );
+
+  const costScore =
+    Math.round(
+      bestOption.costScore
+    );
+
+  const qualityScore =
+    Math.round(
+      bestOption.qualityScore
+    );
+
+  const hospitalRating =
+    Number(
+      bestOption.hospital.rating || 0
+    );
+
+  const priceMessage =
+    createPriceMessage(bestOption);
 
   return (
     `نوصي بـ ${bestOption.hospital.name} لأنه حقق أعلى ` +
-    `درجة توافق إجمالية بنسبة ${Math.round(
-      bestOption.finalScore
-    )}%. ` +
-    `تمت مطابقة ${bestOption.matchedServices} من أصل ` +
-    `${totalItems} خدمات علاجية، بنسبة اكتمال ` +
-    `${Math.round(
-      bestOption.completenessScore
-    )}%. ` +
-    `بلغت التكلفة التقديرية ` +
-    `${bestOption.total.toLocaleString()} ريال، و${priceMessage}. ` +
-    `كما بلغت نسبة توافق التأمين ` +
-    `${Math.round(
-      bestOption.insuranceCompatibility
-    )}%، ويغطي التأمين مبلغًا تقديريًا قدره ` +
-    `${Math.round(
-      bestOption.insuranceCoveredAmount
-    ).toLocaleString()} ريال، ` +
-    `بينما يدفع المستخدم مبلغًا تقديريًا قدره ` +
-    `${Math.round(
-      bestOption.patientAmount
-    ).toLocaleString()} ريال. ` +
-    `كما حصل المستشفى على تقييم جودة بنسبة ` +
-    `${Math.round(
-      bestOption.qualityScore
-    )}% وتقييم عملاء ` +
-    `${bestOption.hospital.rating} من 5.`
+    `نتيجة إجمالية بين المستشفيات بنسبة ${finalScore}%. ` +
+    `تعتمد النتيجة على ثلاثة معايير متساوية: ` +
+    `اكتمال خطة العلاج، تكلفة العلاج، وتقييم المستشفى. ` +
+    `تمت مطابقة ${matchedServices} من أصل ${totalItems} ` +
+    `خدمات علاجية، بدرجة اكتمال ${completenessScore}%. ` +
+    `بلغت التكلفة التقديرية ${formatAmount(
+      bestOption.total
+    )} ريال، ${priceMessage}، ` +
+    `وحصلت على درجة تكلفة ${costScore}%. ` +
+    `كما حصل المستشفى على تقييم ${hospitalRating} من 5، ` +
+    `بدرجة تقييم ${qualityScore}%. ` +
+    `لا يؤثر التأمين أو الاعتماد على ترتيب المستشفيات، ` +
+    `ويتم عرضهما كمعلومات إضافية فقط.`
   );
+}
+
+function buildServiceBreakdown(
+  result: ComparisonResult
+) {
+  return result.matchedItems.map(
+    (matchedItem) => ({
+      service_name:
+        matchedItem.originalName,
+
+      matched_service_name:
+        matchedItem.serviceName,
+
+      quantity: Number(
+        matchedItem.quantity || 1
+      ),
+
+      unit_price: Number(
+        matchedItem.unitPrice || 0
+      ),
+
+      total_price: Number(
+        matchedItem.totalPrice || 0
+      ),
+
+      matched: true,
+    })
+  );
+}
+
+function buildScoreBreakdown(
+  result: ComparisonResult
+) {
+  return {
+    treatment_completeness:
+      Number(
+        result.completenessScore || 0
+      ),
+
+    cost_score:
+      Number(
+        result.costScore || 0
+      ),
+
+    quality_score:
+      Number(
+        result.qualityScore || 0
+      ),
+
+    treatment_completeness_weight:
+      SCORE_WEIGHT_PERCENTAGES
+        .completeness,
+
+    cost_weight:
+      SCORE_WEIGHT_PERCENTAGES.cost,
+
+    quality_weight:
+      SCORE_WEIGHT_PERCENTAGES.rating,
+
+    /*
+     * بيانات التأمين محفوظة للعرض المالي فقط.
+     * لا تدخل في finalScore أو ترتيب المستشفيات.
+     */
+    insurance_compatibility:
+      Number(
+        result.insuranceCompatibility ||
+          0
+      ),
+
+    insurance_covered_amount:
+      Number(
+        result.insuranceCoveredAmount ||
+          0
+      ),
+
+    patient_amount:
+      Number(
+        result.patientAmount || 0
+      ),
+  };
 }
 
 export function buildSaveTreatmentPlanInput({
@@ -101,163 +228,114 @@ export function buildSaveTreatmentPlanInput({
 
     extractedText,
 
-    totalAmount: Number(
-      totalAmount || 0
-    ),
+    totalAmount:
+      Number(totalAmount || 0),
 
     items: items.map((item) => ({
-      service_name: item.serviceName,
+      service_name:
+        item.serviceName,
 
-      quantity: Number(
-        item.quantity || 1
-      ),
+      quantity:
+        Number(item.quantity || 1),
 
-      unit_price: Number(
-        item.unitPrice || 0
-      ),
+      unit_price:
+        Number(item.unitPrice || 0),
 
-      total_price: Number(
-        item.totalPrice || 0
-      ),
+      total_price:
+        Number(item.totalPrice || 0),
     })),
 
     hospitalResults:
       comparisonResults.map(
-        (result, index) => ({
-          hospital_id:
-            result.hospital.id,
+        (result, index) => {
+          const isBestOption =
+            index === 0;
 
-          hospital_name:
-            result.hospital.name,
+          return {
+            hospital_id:
+              result.hospital.id,
 
-          location:
-            result.hospital.location ??
-            null,
+            hospital_name:
+              result.hospital.name,
 
-          accreditation:
-            result.hospital
-              .accreditation ?? null,
+            location:
+              result.hospital.location ??
+              null,
 
-          rating:
-            result.hospital.rating ===
-              null ||
-            result.hospital.rating ===
-              undefined
-              ? null
-              : Number(
-                  result.hospital.rating
-                ),
+            accreditation:
+              result.hospital
+                .accreditation ?? null,
 
-          guarantee_days:
-            result.hospital
-              .guarantee_days === null ||
-            result.hospital
-              .guarantee_days ===
-              undefined
-              ? null
-              : Number(
-                  result.hospital
-                    .guarantee_days
-                ),
+            rating:
+              result.hospital.rating ===
+                null ||
+              result.hospital.rating ===
+                undefined
+                ? null
+                : Number(
+                    result.hospital
+                      .rating
+                  ),
 
-          total_price: Number(
-            result.total || 0
-          ),
+            guarantee_days:
+              result.hospital
+                .guarantee_days ===
+                  null ||
+              result.hospital
+                .guarantee_days ===
+                  undefined
+                ? null
+                : Number(
+                    result.hospital
+                      .guarantee_days
+                  ),
 
-          savings: Number(
-            result.savings || 0
-          ),
-
-          duration_days: Number(
-            result.duration || 0
-          ),
-
-          matched_services_count:
-            Number(
-              result.matchedServices ||
-                0
-            ),
-
-          total_services_count:
-            items.length,
-
-          score: Number(
-            result.finalScore || 0
-          ),
-
-          ranking: index + 1,
-
-          is_best_option:
-            index === 0,
-
-          recommendation_reason:
-            index === 0
-              ? recommendationReason
-              : null,
-
-          service_breakdown:
-            result.matchedItems.map(
-              (matchedItem) => ({
-                service_name:
-                  matchedItem.originalName,
-
-                matched_service_name:
-                  matchedItem.serviceName,
-
-                quantity:
-                  matchedItem.quantity,
-
-                unit_price:
-                  matchedItem.unitPrice,
-
-                total_price:
-                  matchedItem.totalPrice,
-
-                matched: true,
-              })
-            ),
-
-          score_breakdown: {
-            treatment_completeness:
+            total_price:
               Number(
-                result.completenessScore ||
+                result.total || 0
+              ),
+
+            savings:
+              Number(
+                result.savings || 0
+              ),
+
+            matched_services_count:
+              Number(
+                result.matchedServices ||
                   0
               ),
 
-            cost_score: Number(
-              result.costScore || 0
-            ),
+            total_services_count:
+              items.length,
 
-            quality_score: Number(
-              result.qualityScore || 0
-            ),
-
-            insurance_compatibility:
+            score:
               Number(
-                result.insuranceCompatibility ||
-                  0
+                result.finalScore || 0
               ),
 
-            insurance_covered_amount:
-              Number(
-                result.insuranceCoveredAmount ||
-                  0
+            ranking:
+              index + 1,
+
+            is_best_option:
+              isBestOption,
+
+            recommendation_reason:
+              isBestOption
+                ? recommendationReason
+                : null,
+
+            service_breakdown:
+              buildServiceBreakdown(
+                result
               ),
 
-            patient_amount: Number(
-              result.patientAmount || 0
-            ),
-
-            treatment_completeness_weight:
-              30,
-
-            cost_weight: 25,
-
-            quality_weight: 25,
-
-            insurance_weight: 20,
-          },
-        })
+            score_breakdown:
+              buildScoreBreakdown(
+                result
+              ),
+          };
+        }
       ),
 
     bestHospitalId:
@@ -269,6 +347,7 @@ export function buildSaveTreatmentPlanInput({
     bestOptionReason:
       recommendationReason,
 
-    analysisVersion: "v2",
+    analysisVersion:
+      "v3-equal-criteria",
   };
 }

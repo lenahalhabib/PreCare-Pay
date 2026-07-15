@@ -35,13 +35,18 @@ export const planService = {
   async saveTreatmentPlan(
     input: SaveTreatmentPlanInput
   ): Promise<string> {
-    const userId = await getCurrentUserId();
+    const userId =
+      await getCurrentUserId();
 
     if (input.items.length === 0) {
-      throw new Error("Treatment plan has no items");
+      throw new Error(
+        "Treatment plan has no items"
+      );
     }
 
-    if (input.hospitalResults.length === 0) {
+    if (
+      input.hospitalResults.length === 0
+    ) {
       throw new Error(
         "Hospital comparison results are missing"
       );
@@ -49,42 +54,59 @@ export const planService = {
 
     const bestHospital =
       input.hospitalResults.find(
-        (hospital) => hospital.is_best_option
+        (hospital) =>
+          hospital.is_best_option
       ) ?? input.hospitalResults[0];
 
     let planId: string | null = null;
 
     try {
-      const { data: createdPlan, error: planError } =
-        await supabase
-          .from("treatment_plans")
-          .insert({
-            user_id: userId,
-            title:
-              input.title?.trim() ||
-              "Treatment Plan",
-            original_file_name:
-              input.originalFileName ?? null,
-            extracted_text:
-              input.extractedText ?? null,
-            total_amount: toNumber(
+      const {
+        data: createdPlan,
+        error: planError,
+      } = await supabase
+        .from("treatment_plans")
+        .insert({
+          user_id: userId,
+
+          title:
+            input.title?.trim() ||
+            "Treatment Plan",
+
+          original_file_name:
+            input.originalFileName ??
+            null,
+
+          extracted_text:
+            input.extractedText ??
+            null,
+
+          total_amount:
+            toNumber(
               input.totalAmount
             ),
-            best_hospital_id:
-              input.bestHospitalId ??
-              bestHospital.hospital_id,
-            best_hospital_name:
-              input.bestHospitalName ??
-              bestHospital.hospital_name,
-            best_option_reason:
-              input.bestOptionReason ??
-              bestHospital.recommendation_reason,
-            analysis_version:
-              input.analysisVersion ?? "v1",
-            status: "completed",
-          })
-          .select("id")
-          .single();
+
+          best_hospital_id:
+            input.bestHospitalId ??
+            bestHospital.hospital_id,
+
+          best_hospital_name:
+            input.bestHospitalName ??
+            bestHospital.hospital_name,
+
+          best_option_reason:
+            input.bestOptionReason ??
+            bestHospital
+              .recommendation_reason,
+
+          analysis_version:
+            input.analysisVersion ??
+            "v3-equal-criteria",
+
+          status: "completed",
+        })
+        .select("id")
+        .single();
 
       if (planError) {
         throw new Error(
@@ -92,28 +114,41 @@ export const planService = {
         );
       }
 
-      const createdPlanId = createdPlan.id;
+      const createdPlanId =
+        createdPlan.id;
+
       planId = createdPlanId;
 
-      const planItems = input.items.map(
-        (item) => ({
+      const planItems =
+        input.items.map((item) => ({
           plan_id: createdPlanId,
-          service_name: item.service_name,
-          quantity:
-            toNumber(item.quantity) || 1,
-          unit_price: toNumber(
-            item.unit_price
-          ),
-          total_price: toNumber(
-            item.total_price
-          ),
-        })
-      );
 
-      const { error: itemsError } =
-        await supabase
-          .from("treatment_plan_items")
-          .insert(planItems);
+          service_name:
+            item.service_name,
+
+          quantity:
+            toNumber(
+              item.quantity
+            ) || 1,
+
+          unit_price:
+            toNumber(
+              item.unit_price
+            ),
+
+          total_price:
+            toNumber(
+              item.total_price
+            ),
+        }));
+
+      const {
+        error: itemsError,
+      } = await supabase
+        .from(
+          "treatment_plan_items"
+        )
+        .insert(planItems);
 
       if (itemsError) {
         throw new Error(
@@ -124,63 +159,96 @@ export const planService = {
       const hospitalResults =
         input.hospitalResults.map(
           (hospital, index) => ({
-            plan_id: createdPlanId,
+            plan_id:
+              createdPlanId,
+
             hospital_id:
               hospital.hospital_id,
+
             hospital_name:
               hospital.hospital_name,
-            location: hospital.location,
+
+            location:
+              hospital.location,
+
             accreditation:
               hospital.accreditation,
+
             rating:
               hospital.rating === null
                 ? null
-                : toNumber(hospital.rating),
+                : toNumber(
+                    hospital.rating
+                  ),
+
             guarantee_days:
-              hospital.guarantee_days === null
+              hospital.guarantee_days ===
+              null
                 ? null
                 : toNumber(
-                    hospital.guarantee_days
+                    hospital
+                      .guarantee_days
                   ),
-            total_price: toNumber(
-              hospital.total_price
-            ),
-            savings: toNumber(
-              hospital.savings
-            ),
-            duration_days: toNumber(
-              hospital.duration_days
-            ),
+
+            total_price:
+              toNumber(
+                hospital.total_price
+              ),
+
+            savings:
+              toNumber(
+                hospital.savings
+              ),
+
             matched_services_count:
               toNumber(
-                hospital.matched_services_count
+                hospital
+                  .matched_services_count
               ),
+
             total_services_count:
               toNumber(
-                hospital.total_services_count
+                hospital
+                  .total_services_count
               ),
+
             score:
               hospital.score === null
                 ? null
-                : toNumber(hospital.score),
+                : toNumber(
+                    hospital.score
+                  ),
+
             ranking:
               hospital.ranking ??
               index + 1,
+
             is_best_option:
               hospital.is_best_option,
+
             recommendation_reason:
-              hospital.recommendation_reason,
+              hospital
+                .recommendation_reason,
+
             service_breakdown:
-              hospital.service_breakdown ?? [],
+              hospital
+                .service_breakdown ??
+              [],
+
             score_breakdown:
-              hospital.score_breakdown ?? {},
+              hospital
+                .score_breakdown ??
+              {},
           })
         );
 
-      const { error: resultsError } =
-        await supabase
-          .from("plan_hospital_results")
-          .insert(hospitalResults);
+      const {
+        error: resultsError,
+      } = await supabase
+        .from(
+          "plan_hospital_results"
+        )
+        .insert(hospitalResults);
 
       if (resultsError) {
         throw new Error(
@@ -207,72 +275,17 @@ export const planService = {
       );
     }
   },
-async getCurrentUserPlans(): Promise<TreatmentPlan[]> {
-  const userId = await getCurrentUserId();
 
-  const { data, error } = await supabase
-    .from("treatment_plans")
-    .select(`
-      id,
-      title,
-      total_amount,
-      status,
-      original_file_name,
-      extracted_text,
-      best_hospital_id,
-      best_hospital_name,
-      best_option_reason,
-      analysis_version,
-      created_at,
-      updated_at,
-      treatment_plan_items (
-        id,
-        service_name,
-        quantity,
-        unit_price,
-        total_price
-      ),
-      plan_hospital_results (
-        id,
-        hospital_id,
-        hospital_name,
-        location,
-        accreditation,
-        rating,
-        guarantee_days,
-        total_price,
-        savings,
-        duration_days,
-        matched_services_count,
-        total_services_count,
-        score,
-        ranking,
-        is_best_option,
-        recommendation_reason,
-        service_breakdown,
-        score_breakdown
-      )
-    `)
-    .eq("user_id", userId)
-    .order("created_at", {
-      ascending: false,
-    });
+  async getCurrentUserPlans(): Promise<
+    TreatmentPlan[]
+  > {
+    const userId =
+      await getCurrentUserId();
 
-  if (error) {
-    throw new Error(
-      `Failed to load plans: ${error.message}`
-    );
-  }
-
-  return (data ?? []) as TreatmentPlan[];
-},
-
-  async getPlanById(
-    planId: string
-  ): Promise<TreatmentPlanDetails> {
-    const userId = await getCurrentUserId();
-
-    const { data, error } = await supabase
+    const {
+      data,
+      error,
+    } = await supabase
       .from("treatment_plans")
       .select(`
         id,
@@ -287,6 +300,7 @@ async getCurrentUserPlans(): Promise<TreatmentPlan[]> {
         analysis_version,
         created_at,
         updated_at,
+
         treatment_plan_items (
           id,
           service_name,
@@ -294,6 +308,7 @@ async getCurrentUserPlans(): Promise<TreatmentPlan[]> {
           unit_price,
           total_price
         ),
+
         plan_hospital_results (
           id,
           hospital_id,
@@ -304,7 +319,75 @@ async getCurrentUserPlans(): Promise<TreatmentPlan[]> {
           guarantee_days,
           total_price,
           savings,
-          duration_days,
+          matched_services_count,
+          total_services_count,
+          score,
+          ranking,
+          is_best_option,
+          recommendation_reason,
+          service_breakdown,
+          score_breakdown
+        )
+      `)
+      .eq("user_id", userId)
+      .order("created_at", {
+        ascending: false,
+      });
+
+    if (error) {
+      throw new Error(
+        `Failed to load plans: ${error.message}`
+      );
+    }
+
+    return (
+      data ?? []
+    ) as TreatmentPlan[];
+  },
+
+  async getPlanById(
+    planId: string
+  ): Promise<TreatmentPlanDetails> {
+    const userId =
+      await getCurrentUserId();
+
+    const {
+      data,
+      error,
+    } = await supabase
+      .from("treatment_plans")
+      .select(`
+        id,
+        title,
+        total_amount,
+        status,
+        original_file_name,
+        extracted_text,
+        best_hospital_id,
+        best_hospital_name,
+        best_option_reason,
+        analysis_version,
+        created_at,
+        updated_at,
+
+        treatment_plan_items (
+          id,
+          service_name,
+          quantity,
+          unit_price,
+          total_price
+        ),
+
+        plan_hospital_results (
+          id,
+          hospital_id,
+          hospital_name,
+          location,
+          accreditation,
+          rating,
+          guarantee_days,
+          total_price,
+          savings,
           matched_services_count,
           total_services_count,
           score,
@@ -329,11 +412,23 @@ async getCurrentUserPlans(): Promise<TreatmentPlan[]> {
       data as TreatmentPlanDetails;
 
     plan.plan_hospital_results = [
-      ...(plan.plan_hospital_results ?? []),
+      ...(
+        plan.plan_hospital_results ??
+        []
+      ),
     ].sort(
-      (firstHospital, secondHospital) =>
-        (firstHospital.ranking ?? 999) -
-        (secondHospital.ranking ?? 999)
+      (
+        firstHospital,
+        secondHospital
+      ) =>
+        (
+          firstHospital.ranking ??
+          999
+        ) -
+        (
+          secondHospital.ranking ??
+          999
+        )
     );
 
     return plan;
@@ -342,9 +437,12 @@ async getCurrentUserPlans(): Promise<TreatmentPlan[]> {
   async deletePlan(
     planId: string
   ): Promise<void> {
-    const userId = await getCurrentUserId();
+    const userId =
+      await getCurrentUserId();
 
-    const { error } = await supabase
+    const {
+      error,
+    } = await supabase
       .from("treatment_plans")
       .delete()
       .eq("id", planId)
