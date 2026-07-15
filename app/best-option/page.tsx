@@ -9,15 +9,17 @@ import {
 import { useRouter } from "next/navigation";
 
 import BottomNavigation from "@/shared/components/navigation/BottomNavigation";
-import { supabase } from "@/lib/supabase";
 import { useTreatment } from "@/shared/context/TreatmentContext";
+
+import {
+  comparisonService,
+  type ComparisonData,
+} from "@/services/comparison/comparison.service";
+
 import { planService } from "@/services/plan/plan.service";
 
 import {
   buildHospitalComparison,
-  Hospital,
-  HospitalService,
-  ServiceKeyword,
 } from "@/shared/utils/hospitalComparison";
 
 import BestOptionContent from "./BestOptionContent";
@@ -37,14 +39,15 @@ export default function BestOptionPage() {
     resetTreatment,
   } = useTreatment();
 
-  const [hospitals, setHospitals] =
-    useState<Hospital[]>([]);
+  const [
+    comparisonData,
+    setComparisonData,
+  ] = useState<ComparisonData | null>(null);
 
-  const [services, setServices] =
-    useState<HospitalService[]>([]);
-
-  const [keywords, setKeywords] =
-    useState<ServiceKeyword[]>([]);
+  const [
+    selectedInsuranceCompanyId,
+    setSelectedInsuranceCompanyId,
+  ] = useState("");
 
   const [loading, setLoading] =
     useState(true);
@@ -55,8 +58,10 @@ export default function BestOptionPage() {
   const [saved, setSaved] =
     useState(false);
 
-  const [errorMessage, setErrorMessage] =
-    useState("");
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] = useState("");
 
   const [
     saveErrorMessage,
@@ -72,89 +77,110 @@ export default function BestOptionPage() {
       setLoading(true);
       setErrorMessage("");
 
-      const [
-        hospitalsResponse,
-        servicesResponse,
-        keywordsResponse,
-      ] = await Promise.all([
-        supabase
-          .from("hospitals")
-          .select("*"),
+      const data =
+        await comparisonService.getComparisonData();
 
-        supabase
-          .from("hospital_services")
-          .select("*"),
+      setComparisonData(data);
 
-        supabase
-          .from("service_keywords")
-          .select("*"),
-      ]);
+      const savedInsuranceCompanyId =
+        window.sessionStorage.getItem(
+          "selectedInsuranceCompanyId"
+        );
 
-      if (hospitalsResponse.error) {
-        throw hospitalsResponse.error;
+      const savedCompanyExists =
+        data.insuranceCompanies.some(
+          (company) =>
+            company.id ===
+            savedInsuranceCompanyId
+        );
+
+      if (
+        savedInsuranceCompanyId &&
+        savedCompanyExists
+      ) {
+        setSelectedInsuranceCompanyId(
+          savedInsuranceCompanyId
+        );
+
+        return;
       }
 
-      if (servicesResponse.error) {
-        throw servicesResponse.error;
+      const defaultCompany =
+        data.insuranceCompanies.find(
+          (company) =>
+            company.plan_type === "BASIC"
+        ) ?? data.insuranceCompanies[0];
+
+      if (defaultCompany) {
+        setSelectedInsuranceCompanyId(
+          defaultCompany.id
+        );
+
+        window.sessionStorage.setItem(
+          "selectedInsuranceCompanyId",
+          defaultCompany.id
+        );
       }
-
-      if (keywordsResponse.error) {
-        throw keywordsResponse.error;
-      }
-
-      setHospitals(
-        hospitalsResponse.data ?? []
-      );
-
-      setServices(
-        servicesResponse.data ?? []
-      );
-
-      setKeywords(
-        keywordsResponse.data ?? []
-      );
     } catch (error) {
       console.error(error);
 
       setErrorMessage(
-        "Failed to load best option."
+        error instanceof Error
+          ? error.message
+          : "Failed to load best option."
       );
     } finally {
       setLoading(false);
     }
   }
 
-  const comparisonResults = useMemo(
-    () =>
-      buildHospitalComparison({
-        hospitals,
-        services,
-        keywords,
+  const comparisonResults =
+    useMemo(() => {
+      if (!comparisonData) {
+        return [];
+      }
+
+      return buildHospitalComparison({
+        hospitals:
+          comparisonData.hospitals,
+
+        services:
+          comparisonData.hospitalServices,
+
+        keywords:
+          comparisonData.serviceKeywords,
+
+        serviceDefinitions:
+          comparisonData.serviceDefinitions,
+
+        insuranceCompanies:
+          comparisonData.insuranceCompanies,
+
+        insuranceCoverage:
+          comparisonData.insuranceCoverage,
+
+        selectedInsuranceCompanyId:
+          selectedInsuranceCompanyId || null,
+
         items,
+
         currentTotal: Number(
           totalAmount || 0
         ),
-      }),
-    [
-      hospitals,
-      services,
-      keywords,
+      });
+    }, [
+      comparisonData,
+      selectedInsuranceCompanyId,
       items,
       totalAmount,
-    ]
-  );
+    ]);
 
   const bestOption =
     comparisonResults[0];
 
-  const confidence =
-    bestOption && items.length > 0
-      ? Math.round(
-          (bestOption.matchedServices /
-            items.length) *
-            100
-        )
-      : 0;
+  const confidence = bestOption
+    ? Math.round(bestOption.finalScore)
+    : 0;
 
   const recommendationReason =
     bestOption
@@ -186,6 +212,11 @@ export default function BestOptionPage() {
       );
 
       setSaved(true);
+
+      window.sessionStorage.removeItem(
+        "selectedInsuranceCompanyId"
+      );
+
       resetTreatment();
 
       router.push("/current-plans");
@@ -213,8 +244,8 @@ export default function BestOptionPage() {
           </p>
 
           <p className="mt-2 text-sm text-[#476973]/70">
-            Comparing price, rating,
-            guarantee, and matched services.
+            Analyzing treatment completeness,
+            cost, quality and insurance.
           </p>
         </div>
       </main>

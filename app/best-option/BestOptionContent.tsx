@@ -5,7 +5,6 @@ import {
   CheckCircle,
   MapPin,
   Save,
-  ShieldCheck,
   Sparkles,
   Star,
   Trophy,
@@ -31,13 +30,33 @@ type BestOptionContentProps = {
 export default function BestOptionContent({
   bestOption,
   confidence,
-  recommendationReason,
+  totalItems,
   saving,
   saved,
   saveErrorMessage,
   onSave,
   onBack,
 }: BestOptionContentProps) {
+  const matchedServices =
+    bestOption.matchedServices;
+
+  const allServicesMatched =
+    totalItems > 0 &&
+    matchedServices === totalItems;
+
+  const roundedInsuranceCompatibility =
+    Math.round(
+      bestOption.insuranceCompatibility
+    );
+
+  const roundedInsuranceCoveredAmount =
+    Math.round(
+      bestOption.insuranceCoveredAmount
+    );
+
+  const roundedPatientAmount =
+    Math.round(bestOption.patientAmount);
+
   return (
     <main className="flex min-h-screen flex-col bg-[#D4E0DF]">
       <section className="flex-1 px-6 pb-10 pt-12">
@@ -54,8 +73,9 @@ export default function BestOptionContent({
           </h1>
 
           <p className="mt-3 text-[#476973]/75">
-            Based on your treatment plan and our
-            hospital comparison.
+            The hospital with the best balance
+            between treatment completeness, cost,
+            quality and insurance.
           </p>
         </header>
 
@@ -78,11 +98,12 @@ export default function BestOptionContent({
           </p>
 
           <p className="mt-5 text-4xl font-bold">
-            {bestOption.total.toLocaleString()} SAR
+            {bestOption.total.toLocaleString()}{" "}
+            SAR
           </p>
 
           <span className="mt-4 inline-block rounded-full bg-white px-4 py-2 text-sm font-bold text-[#476973]">
-            Best Value
+            Best Match
           </span>
         </div>
 
@@ -94,15 +115,29 @@ export default function BestOptionContent({
             />
 
             <p className="mt-2 text-sm text-[#476973]/65">
-  {bestOption.savings >= 0
-    ? "Estimated Savings"
-    : "Additional Cost"}
-</p>
+              You Pay
+            </p>
 
-<p className="mt-1 text-xl font-bold text-[#476973]">
-  {Math.abs(bestOption.savings).toLocaleString()} SAR
-</p>
+            <p className="mt-1 text-xl font-bold text-[#476973]">
+              {roundedPatientAmount.toLocaleString()}{" "}
+              SAR
+            </p>
+          </div>
 
+          <div className="rounded-[26px] bg-[#F8FBFA] p-5 text-center shadow-sm">
+            <Wallet
+              size={24}
+              className="mx-auto text-[#476973]"
+            />
+
+            <p className="mt-2 text-sm text-[#476973]/65">
+              Insurance Covers
+            </p>
+
+            <p className="mt-1 text-xl font-bold text-[#476973]">
+              {roundedInsuranceCoveredAmount.toLocaleString()}{" "}
+              SAR
+            </p>
           </div>
 
           <div className="rounded-[26px] bg-[#F8FBFA] p-5 text-center shadow-sm">
@@ -116,22 +151,7 @@ export default function BestOptionContent({
             </p>
 
             <p className="mt-1 text-xl font-bold text-[#476973]">
-              {bestOption.hospital.rating}
-            </p>
-          </div>
-
-          <div className="rounded-[26px] bg-[#F8FBFA] p-5 text-center shadow-sm">
-            <ShieldCheck
-              size={24}
-              className="mx-auto text-[#476973]"
-            />
-
-            <p className="mt-2 text-sm text-[#476973]/65">
-              Guarantee
-            </p>
-
-            <p className="mt-1 text-xl font-bold text-[#476973]">
-              {bestOption.hospital.guarantee_days} days
+              {bestOption.hospital.rating}/5
             </p>
           </div>
 
@@ -142,7 +162,7 @@ export default function BestOptionContent({
             />
 
             <p className="mt-2 text-sm text-[#476973]/65">
-              Confidence
+              Overall Match
             </p>
 
             <p className="mt-1 text-xl font-bold text-[#476973]">
@@ -174,7 +194,7 @@ export default function BestOptionContent({
                     </p>
                   </div>
 
-                  <p className="font-bold text-[#476973]">
+                  <p className="whitespace-nowrap font-bold text-[#476973]">
                     {item.totalPrice.toLocaleString()}{" "}
                     SAR
                   </p>
@@ -184,10 +204,35 @@ export default function BestOptionContent({
           </div>
 
           <div className="mt-4 flex justify-between rounded-2xl bg-[#476973] p-4 text-white">
-            <p className="font-bold">Total</p>
+            <p className="font-bold">
+              Hospital Total
+            </p>
 
             <p className="font-bold">
-              {bestOption.total.toLocaleString()} SAR
+              {bestOption.total.toLocaleString()}{" "}
+              SAR
+            </p>
+          </div>
+
+          <div className="mt-3 flex justify-between rounded-2xl bg-[#E4ECEA] p-4 text-[#476973]">
+            <p className="font-semibold">
+              Insurance Covers
+            </p>
+
+            <p className="font-bold">
+              {roundedInsuranceCoveredAmount.toLocaleString()}{" "}
+              SAR
+            </p>
+          </div>
+
+          <div className="mt-3 flex justify-between rounded-2xl bg-white p-4 text-[#476973]">
+            <p className="font-semibold">
+              Estimated Amount You Pay
+            </p>
+
+            <p className="font-bold">
+              {roundedPatientAmount.toLocaleString()}{" "}
+              SAR
             </p>
           </div>
         </div>
@@ -197,12 +242,69 @@ export default function BestOptionContent({
             ✨ لماذا نوصي بهذا المستشفى؟
           </h3>
 
-          <p className="mt-3 leading-7 text-[#476973]/80">
-            {recommendationReason}
-          </p>
+          <ul
+            dir="rtl"
+            className="mt-4 space-y-3 text-right leading-7 text-[#476973]/85"
+          >
+            <li className="rounded-2xl bg-white px-4 py-3">
+              •{" "}
+              {allServicesMatched
+                ? `تتوفر جميع خدمات خطتك العلاجية وعددها ${totalItems} خدمات.`
+                : `تمت مطابقة ${matchedServices} من أصل ${totalItems} خدمات علاجية.`}
+            </li>
+
+            {bestOption.savings > 0 ? (
+              <li className="rounded-2xl bg-white px-4 py-3">
+                • توفير تقديري يصل إلى{" "}
+                <span className="font-bold">
+                  {bestOption.savings.toLocaleString()}{" "}
+                  ريال.
+                </span>
+              </li>
+            ) : bestOption.savings < 0 ? (
+              <li className="rounded-2xl bg-white px-4 py-3">
+                • التكلفة أعلى من الخطة الأصلية
+                بمقدار{" "}
+                <span className="font-bold">
+                  {Math.abs(
+                    bestOption.savings
+                  ).toLocaleString()}{" "}
+                  ريال،
+                </span>{" "}
+                لكن المستشفى حقق أفضل نتيجة
+                إجمالية بين الخيارات المتاحة.
+              </li>
+            ) : (
+              <li className="rounded-2xl bg-white px-4 py-3">
+                • التكلفة التقديرية مساوية
+                لتكلفة الخطة الأصلية.
+              </li>
+            )}
+
+            <li className="rounded-2xl bg-white px-4 py-3">
+              • توافق التأمين التقديري يبلغ{" "}
+              <span className="font-bold">
+                {roundedInsuranceCompatibility}%
+              </span>
+              ، ويغطي مبلغًا يصل إلى{" "}
+              <span className="font-bold">
+                {roundedInsuranceCoveredAmount.toLocaleString()}{" "}
+                ريال.
+              </span>
+            </li>
+
+            <li className="rounded-2xl bg-white px-4 py-3">
+              • تقييم المستشفى{" "}
+              <span className="font-bold">
+                {bestOption.hospital.rating}/5
+              </span>
+              ، مما يعكس مستوى جودة الرعاية.
+            </li>
+          </ul>
         </div>
 
-        {bestOption.unmatchedItems.length > 0 && (
+        {bestOption.unmatchedItems.length >
+          0 && (
           <div className="mt-5 rounded-[30px] bg-yellow-50 p-5 shadow-sm">
             <h3 className="font-semibold text-yellow-800">
               Services not matched
