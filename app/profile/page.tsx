@@ -134,10 +134,23 @@ export default function ProfilePage() {
   };
 
   const handleLogout = async () => {
+  try {
     setLoggingOut(true);
-    await supabase.auth.signOut();
-    router.push("/login");
-  };
+
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      console.error("Logout error:", error);
+      setErrorMessage("Failed to log out. Please try again.");
+      return;
+    }
+
+    router.replace("/");
+    router.refresh();
+  } finally {
+    setLoggingOut(false);
+  }
+};
 
   if (loading) {
     return (
