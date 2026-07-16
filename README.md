@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+🦷 PreCare Pay
 
-## Getting Started
+📖 Overview
 
-First, run the development server:
+PreCare Pay is a web application designed to simplify dental treatment decisions.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Patients often receive treatment plans without knowing whether the prices are reasonable or whether another hospital offers a better option.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+PreCare Pay analyzes the treatment plan, compares it across multiple hospitals, estimates insurance coverage, and recommends the most suitable hospital based on objective criteria.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+✨ Features
+🔐 Secure Authentication
+📄 Upload treatment plans (PDF / Image)
+✍️ Manual treatment plan entry
+🤖 AI-powered treatment extraction
+🦷 Automatic service recognition
+🏥 Compare multiple hospitals
+💰 Compare total treatment cost
+📊 View treatment prices for every hospital
+🛡️ Insurance coverage comparison
+⭐ Smart hospital recommendation
+💾 Save treatment plans
+📁 View saved plans
+🗑️ Delete saved plans
+🚀 User Journey
+Login
+   ↓
+Upload Treatment Plan
+   ↓
+AI Extracts Services
+   ↓
+Review Treatment Plan
+   ↓
+Compare Hospitals
+   ↓
+View Best Recommendation
+   ↓
+Save Plan
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+🧠 Recommendation Algorithm
 
-## Learn More
+The recommendation is calculated using three equally weighted criteria.
 
-To learn more about Next.js, take a look at the following resources:
+Criteria	Weight
+Treatment Completeness	33.3%
+Cost	33.3%
+Hospital Rating	33.3%
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Hospitals with higher treatment coverage, lower total cost, and better ratings receive higher recommendation scores.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Insurance information is displayed separately to help users estimate their expected payment but does not affect the recommendation score.
 
-## Deploy on Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+🎯 Project Goal
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Enable patients to make informed healthcare decisions by comparing treatment costs, hospital quality, and insurance coverage in one place.
+
